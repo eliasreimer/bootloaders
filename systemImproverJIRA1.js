@@ -7,16 +7,16 @@
 
     // Получение токена
     function getGitHubToken() {
-        let token = GM_getValue('github_token_JIRA1');
+        let token = GM_getValue('github_token_JIRA');
 
         if (!token) {
             token = prompt(
-                'Введите токен для systemImproverJira1:',
+                'Введите токен для systemImproverJira:',
                 'github_pat_...'
             );
 
             if (token) {
-                GM_setValue('github_token_JIRA1', token);
+                GM_setValue('github_token_JIRA', token);
                 GM_notification({
                     title: 'Отлично!',
                     text: 'Токен был успешно сохранён.',
@@ -29,14 +29,14 @@
     }
 
     // Команда в меню Tampermonkey для смены токена
-    GM_registerMenuCommand("Изменить токен для systemImproverJira1", function() {
+    GM_registerMenuCommand("Изменить токен для systemImproverJira", function() {
         const newToken = prompt(
-            'Введите новый токен для systemImproverJira1:',
-            GM_getValue('github_token_JIRA1') || ''
+            'Введите новый токен для systemImproverJira:',
+            GM_getValue('github_token_JIRA') || ''
         );
 
         if (newToken !== null) {
-            GM_setValue('github_token_JIRA1', newToken);
+            GM_setValue('github_token_JIRA', newToken);
             GM_notification({
                 title: 'Отлично!',
                 text: 'Новый токен был успешно сохранён.',
