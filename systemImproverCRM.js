@@ -48,7 +48,7 @@
         return token;
     }
 
-    // Добавляем команду в меню Tampermonkey для смены токена
+    // Команда в меню Tampermonkey для смены токена
     GM_registerMenuCommand("Изменить токен для systemImproverCRM", function() {
         const newToken = prompt(
             'Введите новый токен для systemImproverCRM:',
