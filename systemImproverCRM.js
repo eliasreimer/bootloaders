@@ -2,8 +2,8 @@
 // @name         S2 CRM — пакет улучшений интерфейса
 // @namespace    https://github.com/eliasreimer
 // @version      2025.08.15
-// @description  Имя экспортирующего. Дополнительная инфа в сценариях. Быстрое раскрытие и скрытие активности. Быстрое копирование ID полей.
-// @author       Elias Reimer <ilyareimer@ya.ru>
+// @description  Имя экспортирующего. Доп. инфо в сценариях. Быстрое раскрытие/скрытие активности. Быстрое копирование ID полей.
+// @author       Elias Reimer
 // @match        https://crm.corp.skillbox.pro/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_notification
@@ -25,64 +25,38 @@
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/viewingActivity.js"
     ];
 
-    // Получение токена
     function getGitHubToken() {
         let token = GM_getValue('github_token');
-
         if (!token) {
-            token = prompt(
-                'Введите токен для systemImproverCRM:',
-                'github_pat_...'
-            );
-
+            token = prompt('Введите токен для systemImproverCRM:', 'github_pat_...');
             if (token) {
                 GM_setValue('github_token', token);
-                GM_notification({
-                    title: 'Отлично!',
-                    text: 'Токен был успешно сохранён.',
-                    timeout: 3000
-                });
+                GM_notification({title: 'Отлично!', text: 'Токен сохранён.', timeout: 3000});
             }
         }
-
         return token;
     }
 
-    // Добавляем команду в меню Tampermonkey для смены токена
-    GM_registerMenuCommand("Изменить токен для systemImproverCRM", function() {
-        const newToken = prompt(
-            'Введите новый токен для systemImproverCRM:',
-            GM_getValue('github_token') || ''
-        );
-
+    GM_registerMenuCommand("Изменить токен для systemImproverCRM", () => {
+        const newToken = prompt('Введите новый токен для systemImproverCRM:', GM_getValue('github_token') || '');
         if (newToken !== null) {
             GM_setValue('github_token', newToken);
-            GM_notification({
-                title: 'Отлично!',
-                text: 'Новый токен был успешно сохранён.',
-                timeout: 3000
-            });
+            GM_notification({title: 'Отлично!', text: 'Новый токен сохранён.', timeout: 3000});
         }
     });
 
-    // Выполнение скрипта
     function executeScript(scriptContent) {
         try {
             const script = document.createElement('script');
-            script.textContent = `(function() { ${scriptContent} })();`;
+            script.textContent = `(function(){ ${scriptContent} })();`;
             (document.head || document.body || document.documentElement).appendChild(script);
             script.remove();
         } catch (error) {
             console.error('Ошибка выполнения скрипта:', error);
-            GM_notification({
-                title: 'Ошибка выполнения скрипта',
-                text: error.message,
-                timeout: 5000
-            });
+            GM_notification({title: 'Ошибка выполнения', text: error.message, timeout: 5000});
         }
     }
 
-    // Основная функция загрузки
     function loadScripts() {
         const token = getGitHubToken();
         if (!token) return;
@@ -105,37 +79,25 @@
                             const scriptContent = new TextDecoder("utf-8").decode(
                                 new Uint8Array([...binaryContent].map(c => c.charCodeAt(0)))
                             );
-
                             executeScript(scriptContent);
                         } catch (parseError) {
                             console.error('Ошибка обработки ответа:', parseError);
-                            GM_notification({
-                                title: 'Ошибка обработки скрипта',
-                                text: `URL: ${url}\nОшибка: ${parseError.message}`,
-                                timeout: 5000
-                            });
+                            GM_notification({title: 'Ошибка обработки скрипта', text: `URL: ${url}\nОшибка: ${parseError.message}`, timeout: 5000});
                         }
                     } else {
                         console.error(`Ошибка загрузки ${url}:`, response.status, response.responseText);
-                        GM_notification({
-                            title: 'Ошибка загрузки',
-                            text: `URL: ${url}\nStatus: ${response.status}\n${response.statusText}`,
-                            timeout: 5000
-                        });
+                        GM_notification({title: 'Ошибка загрузки', text: `URL: ${url}\nStatus: ${response.status}`, timeout: 5000});
                     }
                 },
                 onerror: function(error) {
                     console.error(`Ошибка запроса для ${url}:`, error);
-                    GM_notification({
-                        title: 'Ошибка сети',
-                        text: `URL: ${url}\nОшибка: ${error.statusText || 'Неизвестная ошибка'}`,
-                        timeout: 5000
-                    });
+                    GM_notification({title: 'Ошибка сети', text: `URL: ${url}\nОшибка: ${error.statusText || 'Неизвестная ошибка'}`, timeout: 5000});
                 }
             });
         });
     }
 
-    // Загрузка
+    // Старт загрузки
     loadScripts();
+
 })();
