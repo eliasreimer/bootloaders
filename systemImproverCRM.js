@@ -2,6 +2,7 @@
 // @name         S2 CRM — пакет улучшений интерфейса
 // @namespace    https://github.com/eliasreimer
 // @version      2025.08.15
+// @description  Имя экспортирующего. Дополнительная инфа в сценариях. Быстрое раскрытие и скрытие активности. Быстрое копирование ID полей.
 // @author       Elias Reimer <ilyareimer@ya.ru>
 // @match        https://crm.corp.skillbox.pro/*
 // @grant        GM_xmlhttpRequest
