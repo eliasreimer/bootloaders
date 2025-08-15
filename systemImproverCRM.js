@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         S2 CRM — пакет улучшений интерфейса
 // @namespace    https://github.com/eliasreimer
-// @version      2025.08.15
-// @description  Имя экспортирующего. Доп. инфо в сценариях. Быстрое раскрытие/скрытие активности. Быстрое копирование ID полей.
+// @version      2025.08.16
+// @description  Основной функционал CRM
 // @author       Elias Reimer
 // @match        https://crm.corp.skillbox.pro/*
 // @grant        GM_xmlhttpRequest
@@ -12,92 +12,132 @@
 // @grant        GM_registerMenuCommand
 // @connect      github.com
 // @connect      api.github.com
+// @connect      raw.githubusercontent.com
 // @run-at       document-end
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    const urls = [
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/createdUpdatedDates.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/whoExportedIt.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/copyID.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/viewingActivity.js"
+    const MODULES = [
+        { name: "Даты создания/обновления", url: "createdUpdatedDates.js" },
+        { name: "Информация об экспорте", url: "whoExportedIt.js" },
+        { name: "Копирование ID", url: "copyID.js" },
+        { name: "Активность просмотра", url: "viewingActivity.js" }
     ];
 
-    function getGitHubToken() {
-        let token = GM_getValue('github_token');
-        if (!token) {
-            token = prompt('Введите токен для systemImproverCRM:', 'github_pat_...');
+    const REPO_URL = "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/";
+    const RAW_REPO_URL = "https://raw.githubusercontent.com/eliasreimer/systemImproverCRM/main/";
+
+    // Инициализация
+    initLoader();
+
+    function initLoader() {
+        if (!window.S2_CRM) {
+            window.S2_CRM = {
+                version: "2025.08.16",
+                modules: {},
+                utils: {
+                    loadModule,
+                    showAlert,
+                    getToken
+                }
+            };
+        }
+
+        if (getToken()) {
+            loadAllModules();
+        } else {
+            promptForToken();
+        }
+    }
+
+    function getToken() {
+        return GM_getValue('s2_crm_token');
+    }
+
+    function promptForToken() {
+        GM_registerMenuCommand("🔑 Установить GitHub токен", () => {
+            const token = prompt("Введите GitHub Personal Access Token:", "");
             if (token) {
-                GM_setValue('github_token', token);
-                GM_notification({title: 'Отлично!', text: 'Токен сохранён.', timeout: 3000});
+                GM_setValue('s2_crm_token', token.trim());
+                showAlert("Токен сохранён", "success");
+                loadAllModules();
+            }
+        });
+        
+        showAlert(
+            "Требуется аутентификация",
+            "Для работы S2 CRM необходим GitHub токен. Откройте меню Tampermonkey и выберите '🔑 Установить GitHub токен'",
+            "warning"
+        );
+    }
+
+    async function loadAllModules() {
+        showAlert("Начало загрузки модулей...", "info");
+        
+        for (const module of MODULES) {
+            try {
+                await loadModule(module);
+            } catch (e) {
+                console.error(`[S2 CRM] Ошибка загрузки ${module.name}:`, e);
+                showAlert(`Ошибка в модуле ${module.name}`, e.message, "error");
             }
         }
-        return token;
     }
 
-    GM_registerMenuCommand("Изменить токен для systemImproverCRM", () => {
-        const newToken = prompt('Введите новый токен для systemImproverCRM:', GM_getValue('github_token') || '');
-        if (newToken !== null) {
-            GM_setValue('github_token', newToken);
-            GM_notification({title: 'Отлично!', text: 'Новый токен сохранён.', timeout: 3000});
-        }
-    });
-
-    function executeScript(scriptContent) {
-        try {
-            const script = document.createElement('script');
-            script.textContent = `(function(){ ${scriptContent} })();`;
-            (document.head || document.body || document.documentElement).appendChild(script);
-            script.remove();
-        } catch (error) {
-            console.error('Ошибка выполнения скрипта:', error);
-            GM_notification({title: 'Ошибка выполнения', text: error.message, timeout: 5000});
-        }
-    }
-
-    function loadScripts() {
-        const token = getGitHubToken();
-        if (!token) return;
-
-        urls.forEach(url => {
+    function loadModule(module) {
+        return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: "GET",
-                url: url,
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Accept": "application/vnd.github.v3+json",
-                    "User-Agent": "Tampermonkey GitHub Script Loader"
-                },
-                onload: function(response) {
-                    if (response.status === 200) {
+                url: RAW_REPO_URL + module.url + "?t=" + Date.now(),
+                timeout: 8000,
+                onload: function(r) {
+                    if (r.status === 200) {
                         try {
-                            const data = JSON.parse(response.responseText);
-                            const base64Content = data.content.replace(/\s/g, '');
-                            const binaryContent = atob(base64Content);
-                            const scriptContent = new TextDecoder("utf-8").decode(
-                                new Uint8Array([...binaryContent].map(c => c.charCodeAt(0)))
-                            );
-                            executeScript(scriptContent);
-                        } catch (parseError) {
-                            console.error('Ошибка обработки ответа:', parseError);
-                            GM_notification({title: 'Ошибка обработки скрипта', text: `URL: ${url}\nОшибка: ${parseError.message}`, timeout: 5000});
+                            executeScript(r.responseText, module.name);
+                            resolve();
+                        } catch (e) {
+                            reject(new Error(`Ошибка выполнения: ${e.message}`));
                         }
                     } else {
-                        console.error(`Ошибка загрузки ${url}:`, response.status, response.responseText);
-                        GM_notification({title: 'Ошибка загрузки', text: `URL: ${url}\nStatus: ${response.status}`, timeout: 5000});
+                        reject(new Error(`HTTP ${r.status}: ${r.statusText}`));
                     }
                 },
-                onerror: function(error) {
-                    console.error(`Ошибка запроса для ${url}:`, error);
-                    GM_notification({title: 'Ошибка сети', text: `URL: ${url}\nОшибка: ${error.statusText || 'Неизвестная ошибка'}`, timeout: 5000});
-                }
+                onerror: reject,
+                ontimeout: () => reject(new Error("Таймаут загрузки"))
             });
         });
     }
 
-    // Старт загрузки
-    loadScripts();
+    function executeScript(content, moduleName) {
+        const script = document.createElement('script');
+        script.textContent = `(function() { 
+            try {
+                ${content}
+                console.log('[S2 CRM] Модуль "${moduleName}" успешно загружен');
+            } catch(e) {
+                console.error('[S2 CRM] Ошибка в модуле "${moduleName}":', e);
+            }
+        })();`;
+        document.head.appendChild(script);
+        script.remove();
+    }
 
+    function showAlert(title, message, type = "info") {
+        const colors = {
+            info: "#3498db",
+            success: "#2ecc71",
+            warning: "#f39c12",
+            error: "#e74c3c"
+        };
+        
+        GM_notification({
+            title: `S2 CRM: ${title}`,
+            text: message,
+            highlight: true,
+            timeout: type === "error" ? 8000 : 5000,
+            image: `https://via.placeholder.com/64/${colors[type].slice(1)}/ffffff?text=${type[0].toUpperCase()}`
+        });
+    }
 })();
