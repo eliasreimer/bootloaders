@@ -7,7 +7,7 @@
 
     // Получение токена
     function getGitHubToken() {
-        let token = GM_getValue('github_token');
+        let token = GM_getValue('github_token_JIRA1');
 
         if (!token) {
             token = prompt(
@@ -16,7 +16,7 @@
             );
 
             if (token) {
-                GM_setValue('github_token', token);
+                GM_setValue('github_token_JIRA1', token);
                 GM_notification({
                     title: 'Отлично!',
                     text: 'Токен был успешно сохранён.',
@@ -32,11 +32,11 @@
     GM_registerMenuCommand("Изменить токен для systemImproverJira1", function() {
         const newToken = prompt(
             'Введите новый токен для systemImproverJira1:',
-            GM_getValue('github_token') || ''
+            GM_getValue('github_token_JIRA1') || ''
         );
 
         if (newToken !== null) {
-            GM_setValue('github_token', newToken);
+            GM_setValue('github_token_JIRA1', newToken);
             GM_notification({
                 title: 'Отлично!',
                 text: 'Новый токен был успешно сохранён.',
