@@ -2,7 +2,6 @@
 // @name         S2 CRM — пакет улучшений интерфейса
 // @description  Имя экспортирующего / Дополнительная инфа в сценариях / Быстрое раскрытие и скрытие активности / Быстрое копирование ID полей.
 // @version      2025.08.15
-// @match        https://crm.corp.skillbox.pro/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_notification
 // @grant        GM_getValue
