@@ -2,9 +2,9 @@
     'use strict';
 
     const urls = [
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/createdUpdatedDates.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/whoExportedIt.js",
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/copyID.js",
+        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/scenariosInfo.js",      
+        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/whoExportedIt.js",        
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/viewingActivity.js"
     ];
 
