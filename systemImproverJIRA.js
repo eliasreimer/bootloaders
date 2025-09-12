@@ -3,8 +3,7 @@
 
     const urls = [
         "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/createSubtasks.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/planningTheCurrentSprint.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/planningTheNextSprint.js",
+        "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/setLabels_SD.js",
     ];
 
     // Получение токена
