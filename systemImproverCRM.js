@@ -50,67 +50,15 @@
         }
     });
 
-    // Выполнение скрипта с передачей GM-функций
+    // Выполнение скрипта
     function executeScript(scriptContent) {
         try {
-            // Создаем обертку, которая передает GM-функции в скрипт
-            const wrappedScript = `
-                (function() {
-                    // Передаем GM-функции в глобальную область видимости скрипта
-                    const GM_xmlhttpRequest = ${GM_xmlhttpRequest.toString()};
-                    
-                    // Заменяем вызовы GM_xmlhttpRequest в скрипте
-                    const modifiedScript = scriptContent.replace(
-                        /GM_xmlhttpRequest\s*\(/g, 
-                        'window.GM_xmlhttpRequest || (typeof GM_xmlhttpRequest !== "undefined" ? GM_xmlhttpRequest : null)('
-                    );
-                    
-                    ${scriptContent}
-                })();
-            `;
-            
             const script = document.createElement('script');
-            script.textContent = wrappedScript;
+            script.textContent = `(function() { ${scriptContent} })();`;
             (document.head || document.body || document.documentElement).appendChild(script);
             script.remove();
         } catch (error) {
             console.error('Ошибка выполнения скрипта:', error);
-            GM_notification({
-                title: 'Ошибка выполнения скрипта',
-                text: error.message,
-                timeout: 5000
-            });
-        }
-    }
-
-    // Альтернативный способ: загрузка через создание отдельного скрипта с GM-правами
-    function executeScriptWithGrants(scriptContent) {
-        try {
-            // Создаем Blob с полным скриптом включая метаданные
-            const fullScript = `// ==UserScript==
-// @name         Dynamic Loaded Script
-// @namespace    https://github.com/eliasreimer
-// @version      1.0
-// @match        https://crm.corp.skillbox.pro/*
-// @grant        GM_xmlhttpRequest
-// @connect      n8n.eliasreimerdev.ru
-// ==/UserScript==
-
-${scriptContent}`;
-
-            const blob = new Blob([fullScript], { type: 'application/javascript' });
-            const url = URL.createObjectURL(blob);
-            
-            // Создаем и добавляем скрипт
-            const script = document.createElement('script');
-            script.src = url;
-            (document.head || document.body || document.documentElement).appendChild(script);
-            
-            // Очищаем URL после загрузки
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-            
-        } catch (error) {
-            console.error('Ошибка выполнения скрипта с GM-правами:', error);
             GM_notification({
                 title: 'Ошибка выполнения скрипта',
                 text: error.message,
@@ -143,8 +91,7 @@ ${scriptContent}`;
                                 new Uint8Array([...binaryContent].map(c => c.charCodeAt(0)))
                             );
 
-                            // Используем метод с GM-правами
-                            executeScriptWithGrants(scriptContent);
+                            executeScript(scriptContent);
                         } catch (parseError) {
                             console.error('Ошибка обработки ответа:', parseError);
                             GM_notification({
@@ -175,9 +122,5 @@ ${scriptContent}`;
     }
 
     // Загрузка
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', loadScripts);
-    } else {
-        loadScripts();
-    }
+    loadScripts();
 })();
