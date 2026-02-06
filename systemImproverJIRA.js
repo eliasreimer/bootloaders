@@ -4,6 +4,7 @@
     const urls = [
         "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/createSubtasks.js",
         "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/setLabels_SD.js",
+        "https://api.github.com/repos/eliasreimer/systemImproverJira/contents/priorityConfirmationButton.js"
     ];
 
     // Получение токена
