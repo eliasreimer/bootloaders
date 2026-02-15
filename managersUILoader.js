@@ -47,10 +47,8 @@
 
     function executeScript(scriptContent) {
         try {
-            const script = document.createElement('script');
-            script.textContent = `(function() { ${scriptContent} })();`;
-            (document.head || document.body || document.documentElement).appendChild(script);
-            script.remove();
+            // Выполняем код в текущем контексте (userscript), чтобы были доступны GM_* функции
+            eval(scriptContent);
         } catch (error) {
             if (DEBUG) console.error('[S2 CRM] Ошибка выполнения:', error);
             GM_notification({
