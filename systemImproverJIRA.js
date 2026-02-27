@@ -54,7 +54,7 @@ const BOOTLOADER = {
         return token;
     }
 
-    GM_registerMenuCommand(`🔑 Изменить токен (${BOOTLOADER.tokenLabel})`, () => {
+    GM_registerMenuCommand('🔑 Изменить GitHub-токен', () => {
         const t = prompt('Новый токен:', GM_getValue(BOOTLOADER.tokenKey) || '');
         if (t !== null) {
             GM_setValue(BOOTLOADER.tokenKey, t);
@@ -92,19 +92,19 @@ const BOOTLOADER = {
         });
     }
 
-    GM_registerMenuCommand(`🔄 Обновить скрипты (${BOOTLOADER.tokenLabel})`, () => {
+    GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
         GM_notification({ title: 'Кэш очищен', text: 'Скрипты обновятся при перезагрузке.', timeout: 3000 });
         location.reload();
     });
 
-    GM_registerMenuCommand(`📊 Статус кэша (${BOOTLOADER.tokenLabel})`, () => {
+    GM_registerMenuCommand('📊 Статус кэша скриптов', () => {
         const lines = BOOTLOADER.scripts.map(name => {
             const cached = getCache(name);
             if (cached) return `✅ ${name} — в кэше (${cached.age} мин назад)`;
             return `❌ ${name} — не в кэше`;
         });
-        alert(`Статус кэша (${BOOTLOADER.tokenLabel}):\n\n` + lines.join('\n'));
+        alert('Статус кэша:\n\n' + lines.join('\n'));
     });
 
     // ========== ЗАГРУЗКА ==========
