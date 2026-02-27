@@ -7,7 +7,8 @@
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/whoExportedIt.js",        
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/viewingActivity.js",
         "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/nestedScenarios.js",
-        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/helperApi.js"
+        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/helperApi.js",
+        "https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/myBrother.js"
     ];
 
     // Получение токена
