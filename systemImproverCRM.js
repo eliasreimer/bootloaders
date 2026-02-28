@@ -30,6 +30,7 @@ const BOOTLOADER = {
         'nestedScenarios.js',
         'myBrother.js',
         'scenarioOpener.js',
+        'scenarioLogsEnhancer.js',
     ],
 
     // Базовый URL репозитория
