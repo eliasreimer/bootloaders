@@ -19,6 +19,7 @@ const BOOTLOADER = {
         'createSubtasks.js',
         'setLabels_SD.js',
         'priorityConfirmationButton.js',
+        'aboutUserTooltip.js',
     ],
 
     repoBase: 'https://api.github.com/repos/eliasreimer/systemImproverJira/contents/',
