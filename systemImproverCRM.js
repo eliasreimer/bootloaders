@@ -29,6 +29,7 @@ const BOOTLOADER = {
         'viewingActivity.js',
         'nestedScenarios.js',
         'myBrother.js',
+        'scenarioOpener.js',
     ],
 
     // Базовый URL репозитория
