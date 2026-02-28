@@ -4,7 +4,7 @@
  * ============================================
  */
 const BOOTLOADER = {
-    debug: true,
+    debug: false,
 
     cache: {
         enabled: true,
