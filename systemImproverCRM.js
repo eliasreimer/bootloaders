@@ -31,6 +31,7 @@ const BOOTLOADER = {
         'myBrother.js',
         'scenarioOpener.js',
         'scenarioLogsEnhancer.js',
+        'fieldSettingsOpener.js',
     ],
 
     // Базовый URL репозитория
