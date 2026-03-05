@@ -20,6 +20,7 @@ const BOOTLOADER = {
         'setLabels_SD.js',
         'priorityConfirmationButton.js',
         'aboutUserTooltip.js',
+        'announcementBannerCollapse.js',
     ],
 
     repoBase: 'https://api.github.com/repos/eliasreimer/systemImproverJira/contents/',
