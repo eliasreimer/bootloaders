@@ -33,6 +33,7 @@ const BOOTLOADER = {
         'scenarioLogsEnhancer.js',
         'fieldSettingsOpener.js',
         'apiLinkButton.js',
+        'scenarioLogs.js',
     ],
 
     // Базовый URL репозитория
