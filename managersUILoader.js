@@ -49,7 +49,7 @@ const BOOTLOADER = {
 
     const diagnostics = {
         startTime: Date.now(),
-        bootloaderVersion: '1.4.0',
+        bootloaderVersion: '1.4.1',
         scripts: [],
         cacheHits: 0,
         cacheMisses: 0,
@@ -77,7 +77,7 @@ const BOOTLOADER = {
 
     let notificationTimer = null;
 
-    function showNotification(title, message, options = {}) {
+    function showToast(title, message, options = {}) {
         const {
             type = 'info',      // info, success, warning, error
             duration = 3000,    // длительность показа (мс)
@@ -158,21 +158,21 @@ const BOOTLOADER = {
                 maskInput = false,  // скрывать ввод (для паролей)
             } = options;
 
-            log.info(`Диалог: [${type}] ${title}`);
+            log.info(`Prompt: [${type}] ${title}`);
 
-            // Удаляем старые диалоги
-            const oldDialog = document.querySelector('.bl-dialog');
-            const oldOverlay = document.querySelector('.bl-dialog-overlay');
-            if (oldDialog) oldDialog.remove();
+            // Удаляем старые toast
+            const oldToast = document.querySelector('.bl-toast');
+            const oldOverlay = document.querySelector('.bl-overlay');
+            if (oldToast) oldToast.remove();
             if (oldOverlay) oldOverlay.remove();
 
             // Создаём оверлей
             const overlay = document.createElement('div');
-            overlay.className = 'bl-dialog-overlay';
+            overlay.className = 'bl-overlay';
 
-            // Создаём диалог
-            const dialog = document.createElement('div');
-            dialog.className = 'bl-dialog';
+            // Создаём toast
+            const toast = document.createElement('div');
+            toast.className = `bl-toast bl-toast-${type} bl-toast-prompt`;
 
             const icon = {
                 info: '🔑',
@@ -181,39 +181,41 @@ const BOOTLOADER = {
                 error: '❌',
             }[type] || '🔑';
 
-            dialog.innerHTML = `
-                <div class="bl-dialog-icon">${icon}</div>
-                <div class="bl-dialog-content">
-                    <div class="bl-dialog-title">${title}</div>
-                    ${message ? `<div class="bl-dialog-message">${message}</div>` : ''}
-                    <div class="bl-dialog-inputs">
+            toast.innerHTML = `
+                <div class="bl-toast-icon">${icon}</div>
+                <div class="bl-toast-content">
+                    <div class="bl-toast-title">${title}</div>
+                    ${message ? `<div class="bl-toast-message">${message}</div>` : ''}
+                    <div class="bl-toast-inputs">
                         <input type="${maskInput ? 'password' : 'text'}"
-                               class="bl-dialog-input"
+                               class="bl-toast-input"
                                placeholder="${placeholder}"
                                autocomplete="off">
                     </div>
-                    <div class="bl-dialog-buttons">
-                        <button class="bl-dialog-btn bl-dialog-btn-cancel">Отмена</button>
-                        <button class="bl-dialog-btn bl-dialog-btn-confirm">OK</button>
+                    <div class="bl-toast-buttons">
+                        <button class="bl-toast-btn bl-toast-btn-cancel">Отмена</button>
+                        <button class="bl-toast-btn bl-toast-btn-confirm">OK</button>
                     </div>
                 </div>
+                <button class="bl-toast-close">&times;</button>
             `;
 
             document.body.appendChild(overlay);
-            document.body.appendChild(dialog);
+            document.body.appendChild(toast);
 
-            const input = dialog.querySelector('.bl-dialog-input');
-            const btnConfirm = dialog.querySelector('.bl-dialog-btn-confirm');
-            const btnCancel = dialog.querySelector('.bl-dialog-btn-cancel');
+            const input = toast.querySelector('.bl-toast-input');
+            const btnConfirm = toast.querySelector('.bl-toast-btn-confirm');
+            const btnCancel = toast.querySelector('.bl-toast-btn-cancel');
+            const btnClose = toast.querySelector('.bl-toast-close');
 
             // Фокус на input
             setTimeout(() => input.focus(), 100);
 
             // Обработчик закрытия
             const closeHandler = (result) => {
-                dialog.classList.add('bl-dialog-closing');
+                toast.classList.add('bl-toast-hiding');
                 setTimeout(() => {
-                    dialog.remove();
+                    toast.remove();
                     overlay.remove();
                     resolve(result || null);
                 }, 200);
@@ -221,6 +223,7 @@ const BOOTLOADER = {
 
             btnCancel.addEventListener('click', () => closeHandler(null));
             btnConfirm.addEventListener('click', () => closeHandler(input.value));
+            btnClose.addEventListener('click', () => closeHandler(null));
 
             // Enter на input
             input.addEventListener('keydown', (e) => {
@@ -236,25 +239,23 @@ const BOOTLOADER = {
     function showModal(title, content, options = {}) {
         const {
             type = 'info',
-            width = '400px',
         } = options;
 
-        log.info(`Модальное окно: [${type}] ${title}`);
+        log.info(`Modal: [${type}] ${title}`);
 
-        // Удаляем старые диалоги
-        const oldDialog = document.querySelector('.bl-dialog');
-        const oldOverlay = document.querySelector('.bl-dialog-overlay');
-        if (oldDialog) oldDialog.remove();
+        // Удаляем старые toast
+        const oldToast = document.querySelector('.bl-toast');
+        const oldOverlay = document.querySelector('.bl-overlay');
+        if (oldToast) oldToast.remove();
         if (oldOverlay) oldOverlay.remove();
 
         // Создаём оверлей
         const overlay = document.createElement('div');
-        overlay.className = 'bl-dialog-overlay';
+        overlay.className = 'bl-overlay';
 
-        // Создаём диалог
-        const dialog = document.createElement('div');
-        dialog.className = 'bl-dialog';
-        if (width) dialog.style.maxWidth = width;
+        // Создаём toast
+        const toast = document.createElement('div');
+        toast.className = `bl-toast bl-toast-${type} bl-toast-modal`;
 
         const icon = {
             info: 'ℹ️',
@@ -263,39 +264,42 @@ const BOOTLOADER = {
             error: '❌',
         }[type] || 'ℹ️';
 
-        dialog.innerHTML = `
-            <div class="bl-dialog-icon">${icon}</div>
-            <div class="bl-dialog-content">
-                <div class="bl-dialog-title">${title}</div>
-                <div class="bl-dialog-body">${content}</div>
-                <div class="bl-dialog-buttons">
-                    <button class="bl-dialog-btn bl-dialog-btn-confirm">Закрыть</button>
+        toast.innerHTML = `
+            <div class="bl-toast-icon">${icon}</div>
+            <div class="bl-toast-content">
+                <div class="bl-toast-title">${title}</div>
+                <div class="bl-toast-body">${content}</div>
+                <div class="bl-toast-buttons">
+                    <button class="bl-toast-btn bl-toast-btn-confirm">Закрыть</button>
                 </div>
             </div>
+            <button class="bl-toast-close">&times;</button>
         `;
 
         document.body.appendChild(overlay);
-        document.body.appendChild(dialog);
+        document.body.appendChild(toast);
 
-        const btnConfirm = dialog.querySelector('.bl-dialog-btn-confirm');
+        const btnConfirm = toast.querySelector('.bl-toast-btn-confirm');
+        const btnClose = toast.querySelector('.bl-toast-close');
 
         // Обработчик закрытия
         const closeHandler = () => {
-            dialog.classList.add('bl-dialog-closing');
+            toast.classList.add('bl-toast-hiding');
             setTimeout(() => {
-                dialog.remove();
+                toast.remove();
                 overlay.remove();
             }, 200);
         };
 
         btnConfirm.addEventListener('click', closeHandler);
+        btnClose.addEventListener('click', closeHandler);
         overlay.addEventListener('click', closeHandler);
     }
 
     // Инжектим стили
     GM_addStyle(`
-        /* ========== УВЕДОМЛЕНИЯ ========== */
-        .bl-notification-overlay {
+        /* ========== TOAST (все UI элементы) ========== */
+        .bl-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -304,10 +308,9 @@ const BOOTLOADER = {
             background: rgba(0, 0, 0, 0.3);
             z-index: 99999;
             animation: bl-fade-in 0.15s ease;
-            pointer-events: none;
         }
 
-        .bl-notification {
+        .bl-toast {
             position: fixed;
             top: 20px;
             right: 20px;
@@ -325,36 +328,50 @@ const BOOTLOADER = {
             font-size: 14px;
             line-height: 1.4;
             animation: bl-slide-in 0.2s ease;
-            pointer-events: auto;
         }
 
-        .bl-notification.bl-notification-hiding {
+        .bl-toast.bl-toast-hiding {
             animation: bl-slide-out 0.2s ease forwards;
         }
 
-        .bl-notification-icon {
+        /* Toast с вводом (prompt) - шире */
+        .bl-toast-prompt {
+            min-width: 380px;
+        }
+
+        /* Toast с модальным контентом - ещё шире */
+        .bl-toast-modal {
+            min-width: 420px;
+        }
+
+        .bl-toast-icon {
             font-size: 24px;
             flex-shrink: 0;
         }
 
-        .bl-notification-content {
+        .bl-toast-content {
             flex: 1;
             min-width: 0;
         }
 
-        .bl-notification-title {
+        .bl-toast-title {
             font-weight: 600;
             color: #1a1a1a;
             margin-bottom: 4px;
         }
 
-        .bl-notification-message {
+        .bl-toast-message {
             color: #666;
             font-size: 13px;
             word-break: break-word;
         }
 
-        .bl-notification-close {
+        .bl-toast-body {
+            color: #333;
+            margin: 12px 0;
+        }
+
+        .bl-toast-close {
             flex-shrink: 0;
             width: 24px;
             height: 24px;
@@ -370,160 +387,98 @@ const BOOTLOADER = {
             transition: all 0.15s;
         }
 
-        .bl-notification-close:hover {
+        .bl-toast-close:hover {
             background: rgba(0, 0, 0, 0.05);
             color: #333;
         }
 
-        /* Типы уведомлений */
-        .bl-notification-info {
-            border-left: 4px solid #4a8fda;
-        }
-        .bl-notification-info .bl-notification-icon {
-            color: #4a8fda;
+        /* Поля ввода в toast */
+        .bl-toast-inputs {
+            margin: 12px 0;
         }
 
-        .bl-notification-success {
-            border-left: 4px solid #4caf50;
-        }
-        .bl-notification-success .bl-notification-icon {
-            color: #4caf50;
-        }
-
-        .bl-notification-warning {
-            border-left: 4px solid #ff9800;
-        }
-        .bl-notification-warning .bl-notification-icon {
-            color: #ff9800;
-        }
-
-        .bl-notification-error {
-            border-left: 4px solid #f44336;
-        }
-        .bl-notification-error .bl-notification-icon {
-            color: #f44336;
-        }
-
-        /* ========== ДИАЛОГОВЫЕ ОКНА ========== */
-        .bl-dialog-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 99999;
-            animation: bl-fade-in 0.2s ease;
-        }
-
-        .bl-dialog {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            min-width: 350px;
-            max-width: 500px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-            z-index: 100000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            animation: bl-scale-in 0.2s ease;
-            overflow: hidden;
-        }
-
-        .bl-dialog.bl-dialog-closing {
-            animation: bl-scale-out 0.2s ease forwards;
-        }
-
-        .bl-dialog-icon {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 32px;
-        }
-
-        .bl-dialog-content {
-            padding: 24px 24px 20px 70px;
-        }
-
-        .bl-dialog-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 8px;
-        }
-
-        .bl-dialog-message {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 16px;
-        }
-
-        .bl-dialog-body {
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 16px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .bl-dialog-inputs {
-            margin-bottom: 16px;
-        }
-
-        .bl-dialog-input {
+        .bl-toast-input {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 14px;
             font-family: inherit;
-            transition: border-color 0.15s;
             box-sizing: border-box;
         }
 
-        .bl-dialog-input:focus {
+        .bl-toast-input:focus {
             outline: none;
             border-color: #4a8fda;
         }
 
-        .bl-dialog-buttons {
+        /* Кнопки в toast */
+        .bl-toast-buttons {
             display: flex;
             gap: 8px;
             justify-content: flex-end;
+            margin-top: 12px;
         }
 
-        .bl-dialog-btn {
-            padding: 10px 20px;
+        .bl-toast-btn {
+            padding: 8px 16px;
             border: none;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.15s;
         }
 
-        .bl-dialog-btn-cancel {
+        .bl-toast-btn-cancel {
             background: #f5f5f5;
             color: #666;
         }
 
-        .bl-dialog-btn-cancel:hover {
+        .bl-toast-btn-cancel:hover {
             background: #e0e0e0;
         }
 
-        .bl-dialog-btn-confirm {
+        .bl-toast-btn-confirm {
             background: linear-gradient(135deg, #4a8fda 0%, #3a7fc8 100%);
             color: white;
         }
 
-        .bl-dialog-btn-confirm:hover {
+        .bl-toast-btn-confirm:hover {
             background: linear-gradient(135deg, #3a7fc8 0%, #2a6fb6 100%);
         }
 
-        /* ========== АНИМАЦИИ ========== */
+        /* Типы toast */
+        .bl-toast-info {
+            border-left: 4px solid #4a8fda;
+        }
+        .bl-toast-info .bl-toast-icon {
+            color: #4a8fda;
+        }
+
+        .bl-toast-success {
+            border-left: 4px solid #4caf50;
+        }
+        .bl-toast-success .bl-toast-icon {
+            color: #4caf50;
+        }
+
+        .bl-toast-warning {
+            border-left: 4px solid #ff9800;
+        }
+        .bl-toast-warning .bl-toast-icon {
+            color: #ff9800;
+        }
+
+        .bl-toast-error {
+            border-left: 4px solid #f44336;
+        }
+        .bl-toast-error .bl-toast-icon {
+            color: #f44336;
+        }
+
+        /* Анимации */
         @keyframes bl-fade-in {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -551,45 +506,14 @@ const BOOTLOADER = {
             }
         }
 
-        @keyframes bl-scale-in {
-            from {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1);
-            }
-        }
-
-        @keyframes bl-scale-out {
-            from {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1);
-            }
-            to {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(0.9);
-            }
-        }
-
-        /* ========== МОБИЛЬНАЯ АДАПТИВНОСТЬ ========== */
+        /* Мобильная адаптивность */
         @media (max-width: 480px) {
-            .bl-notification {
+            .bl-toast {
                 top: 10px;
                 right: 10px;
                 left: 10px;
                 min-width: auto;
                 max-width: none;
-            }
-
-            .bl-dialog {
-                min-width: calc(100vw - 40px);
-                max-width: calc(100vw - 40px);
-            }
-
-            .bl-dialog-content {
-                padding: 20px 20px 16px 60px;
             }
         }
     `);
@@ -607,7 +531,7 @@ const BOOTLOADER = {
             ).then((result) => {
                 if (result) {
                     GM_setValue(BOOTLOADER.tokenKey, result);
-                    showNotification('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
+                    showToast('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
                     loadAll(); // Перезапускаем загрузку
                 }
             });
@@ -627,10 +551,10 @@ const BOOTLOADER = {
             if (result !== null) {
                 if (result) {
                     GM_setValue(BOOTLOADER.tokenKey, result);
-                    showNotification('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
+                    showToast('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
                 } else {
                     GM_setValue(BOOTLOADER.tokenKey, '');
-                    showNotification('Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
+                    showToast('Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
                 }
             }
         });
@@ -680,7 +604,7 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
-        showNotification('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы', { type: 'info' });
+        showToast('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы', { type: 'info' });
         setTimeout(() => location.reload(), 1000);
     });
 
@@ -885,7 +809,7 @@ const BOOTLOADER = {
                         const response = JSON.parse(r.responseText);
                         if (response.ticketUrl || response.ticket_link || response.url) {
                             const ticketUrl = response.ticketUrl || response.ticket_link || response.url;
-                            showNotification(
+                            showToast(
                                 '📋 Создана заявка в Service Desk',
                                 'Нажмите, чтобы открыть',
                                 {
@@ -910,7 +834,7 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('📤 Отправить диагностику', () => {
         sendDiagnostics();
-        showNotification('Отправлено!', 'Диагностика отправлена в Service Desk', { type: 'success' });
+        showToast('Отправлено!', 'Диагностика отправлена в Service Desk', { type: 'success' });
     });
 
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
@@ -919,7 +843,7 @@ const BOOTLOADER = {
         const token = getToken();
         if (!token) {
             if (!BOOTLOADER.silentErrors) {
-                showNotification(
+                showToast(
                     'Токен не указан',
                     'Укажите токен в меню Tampermonkey',
                     { type: 'error' }
@@ -992,7 +916,7 @@ const BOOTLOADER = {
                 });
 
                 if (!BOOTLOADER.silentErrors) {
-                    showNotification(
+                    showToast(
                         `Ошибка: ${name}`,
                         'Невозможно загрузить скрипт. Обратитесь в Service Desk.',
                         { type: 'error', duration: 8000 }
@@ -1001,7 +925,7 @@ const BOOTLOADER = {
                     // Silent mode: показываем уведомление только если нет даже кэша
                     const hasStaleCache = getCache(name, true);
                     if (!hasStaleCache) {
-                        showNotification(
+                        showToast(
                             `⚠️ Проблемы с ${name}`,
                             'Скрипт недоступен. Функционал может быть ограничен.',
                             { type: 'warning' }
