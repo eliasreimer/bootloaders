@@ -54,7 +54,7 @@ const BOOTLOADER = {
 
     const diagnostics = {
         startTime: Date.now(),
-        bootloaderVersion: '1.4.2',
+        bootloaderVersion: '1.4.3',
         scripts: [],
         cacheHits: 0,
         cacheMisses: 0,
@@ -222,7 +222,7 @@ const BOOTLOADER = {
                 setTimeout(() => {
                     toast.remove();
                     overlay.remove();
-                    resolve(result || null);
+                    resolve(result);  // Передаём как есть, не превращаем "" в null
                 }, 200);
             };
 
@@ -557,35 +557,43 @@ const BOOTLOADER = {
                 'github_pat_...',
                 { type: 'info' }
             ).then(async (result) => {
-                if (result) {
-                    // Сохраняем токен сразу
-                    GM_setValue(BOOTLOADER.tokenKey, result);
-                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
-                    GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
+                if (result === null) return;  // Пользователь отменил
 
-                    // Показываем что сохраняем
-                    const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
+                if (result === '') {
+                    // Пустая строка = удалить токен
+                    GM_setValue(BOOTLOADER.tokenKey, '');
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'deleted');
+                    showToast('⚠️ Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
+                    return;
+                }
 
-                    // Проверяем токен
-                    const isValid = await validateToken(result);
+                // Непустая строка = сохраняем токен
+                GM_setValue(BOOTLOADER.tokenKey, result);
+                GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
+                GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
 
-                    // Удаляем уведомление о сохранении
-                    const oldToast = document.querySelector('.bl-toast');
-                    if (oldToast) {
-                        oldToast.classList.add('bl-toast-hiding');
-                        setTimeout(() => oldToast.remove(), 200);
-                    }
-                    const overlay = document.querySelector('.bl-overlay');
-                    if (overlay) overlay.remove();
+                // Показываем что сохраняем
+                const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
 
-                    if (isValid) {
-                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
-                        showToast('✅ Токен сохранён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
-                        loadAll(); // Перезапускаем загрузку
-                    } else {
-                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
-                        showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
-                    }
+                // Проверяем токен
+                const isValid = await validateToken(result);
+
+                // Удаляем уведомление о сохранении
+                const oldToast = document.querySelector('.bl-toast');
+                if (oldToast) {
+                    oldToast.classList.add('bl-toast-hiding');
+                    setTimeout(() => oldToast.remove(), 200);
+                }
+                const overlay = document.querySelector('.bl-overlay');
+                if (overlay) overlay.remove();
+
+                if (isValid) {
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
+                    showToast('✅ Токен сохранён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
+                    loadAll(); // Перезапускаем загрузку
+                } else {
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
+                    showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
                 }
             });
             return null;
@@ -609,40 +617,42 @@ const BOOTLOADER = {
             currentToken ? '••••••••••••••••' : '',
             { type: 'info', maskInput: true }
         ).then(async (result) => {
-            if (result !== null) {
-                if (result) {
-                    // Сохраняем токен сразу
-                    GM_setValue(BOOTLOADER.tokenKey, result);
-                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
-                    GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
+            if (result === null) return;  // Пользователь отменил
 
-                    // Показываем что сохраняем
-                    const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
+            if (result === '') {
+                // Пустая строка = удалить токен
+                GM_setValue(BOOTLOADER.tokenKey, '');
+                GM_setValue(BOOTLOADER.tokenKey + '_status', 'deleted');
+                showToast('⚠️ Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
+                return;
+            }
 
-                    // Проверяем токен
-                    const isValid = await validateToken(result);
+            // Непустая строка = сохраняем токен
+            GM_setValue(BOOTLOADER.tokenKey, result);
+            GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
+            GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
 
-                    // Удаляем уведомление о сохранении
-                    const oldToast = document.querySelector('.bl-toast');
-                    if (oldToast) {
-                        oldToast.classList.add('bl-toast-hiding');
-                        setTimeout(() => oldToast.remove(), 200);
-                    }
-                    const overlay = document.querySelector('.bl-overlay');
-                    if (overlay) overlay.remove();
+            // Показываем что сохраняем
+            const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
 
-                    if (isValid) {
-                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
-                        showToast('✅ Токен обновлён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
-                    } else {
-                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
-                        showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
-                    }
-                } else {
-                    GM_setValue(BOOTLOADER.tokenKey, '');
-                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'deleted');
-                    showToast('⚠️ Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
-                }
+            // Проверяем токен
+            const isValid = await validateToken(result);
+
+            // Удаляем уведомление о сохранении
+            const oldToast = document.querySelector('.bl-toast');
+            if (oldToast) {
+                oldToast.classList.add('bl-toast-hiding');
+                setTimeout(() => oldToast.remove(), 200);
+            }
+            const overlay = document.querySelector('.bl-overlay');
+            if (overlay) overlay.remove();
+
+            if (isValid) {
+                GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
+                showToast('✅ Токен обновлён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
+            } else {
+                GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
+                showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
             }
         });
     });
@@ -691,10 +701,12 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
-        const toast = showToast('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы...', { type: 'info', duration: 0 });
+        const toast = showToast('Кэш очищен', 'Скрипты обновятся при перезагрузке...', { type: 'info', duration: 5000 });
         setTimeout(() => {
-            toast.classList.add('bl-toast-hiding');
-            setTimeout(() => location.reload(), 200);
+            if (toast && toast.classList) {
+                toast.classList.add('bl-toast-hiding');
+            }
+            setTimeout(() => location.reload(), 300);
         }, 2000);
     });
 
@@ -976,8 +988,26 @@ const BOOTLOADER = {
                     // Если есть ссылка на тикет - добавляем
                     try {
                         const response = JSON.parse(r.responseText);
+
+                        // Пробуем разные форматы ответа
+                        let ticketUrl = null;
+
+                        // Прямой формат
                         if (response.ticketUrl || response.ticket_link || response.url) {
-                            const ticketUrl = response.ticketUrl || response.ticket_link || response.url;
+                            ticketUrl = response.ticketUrl || response.ticket_link || response.url;
+                        }
+                        // n8n формат: nodes[0].parameters.responseBody → JSON → answer
+                        else if (response.nodes && response.nodes[0] && response.nodes[0].parameters) {
+                            const responseBody = response.nodes[0].parameters.responseBody;
+                            if (responseBody) {
+                                const parsedBody = JSON.parse(responseBody);
+                                if (parsedBody.answer) {
+                                    ticketUrl = parsedBody.answer;
+                                }
+                            }
+                        }
+
+                        if (ticketUrl) {
                             showToast(
                                 '✅ Диагностика отправлена',
                                 message + ' — Нажмите, чтобы открыть заявку',
@@ -990,7 +1020,7 @@ const BOOTLOADER = {
                             return;
                         }
                     } catch {
-                        // Ответ не JSON - игнорируем
+                        // Ответ не JSON или ошибка парсинга - игнорируем
                     }
 
                     // Обычное подтверждение без ссылки
