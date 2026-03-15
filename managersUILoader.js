@@ -1,6 +1,6 @@
 /**
  * ============================================
- *  НАСТРОЙКИ БУТЛОАДЕРА (ManagersUI)
+ *  НАСТРОЙКИ БУТЛОАДЕРА
  * ============================================
  */
 const BOOTLOADER = {
@@ -49,7 +49,7 @@ const BOOTLOADER = {
 
     const diagnostics = {
         startTime: Date.now(),
-        bootloaderVersion: '1.2.0',
+        bootloaderVersion: '1.3.0',
         scripts: [],
         cacheHits: 0,
         cacheMisses: 0,
@@ -73,6 +73,234 @@ const BOOTLOADER = {
         ok:    (...a) => { if (BOOTLOADER.debug) console.log('%c[ManagersUI Bootloader]', 'color:#28a745;font-weight:600', ...a); },
     };
 
+    // ========== УВЕДОМЛЕНИЯ ==========
+
+    let notificationTimer = null;
+
+    function showNotification(title, message, options = {}) {
+        const {
+            type = 'info',      // info, success, warning, error
+            duration = 3000,    // длительность показа (мс)
+            onClick = null,     // callback при клике
+        } = options;
+
+        log.info(`Уведомление: [${type}] ${title} — ${message}`);
+
+        // Удаляем старые уведомления
+        const oldNotification = document.querySelector('.bl-notification');
+        const oldOverlay = document.querySelector('.bl-notification-overlay');
+        if (oldNotification) oldNotification.remove();
+        if (oldOverlay) oldOverlay.remove();
+
+        // Создаём оверлей
+        const overlay = document.createElement('div');
+        overlay.className = 'bl-notification-overlay';
+
+        // Создаём уведомление
+        const notification = document.createElement('div');
+        notification.className = `bl-notification bl-notification-${type}`;
+
+        const icon = {
+            info: 'ℹ️',
+            success: '✅',
+            warning: '⚠️',
+            error: '❌',
+        }[type] || 'ℹ️';
+
+        notification.innerHTML = `
+            <div class="bl-notification-icon">${icon}</div>
+            <div class="bl-notification-content">
+                <div class="bl-notification-title">${title}</div>
+                ${message ? `<div class="bl-notification-message">${message}</div>` : ''}
+            </div>
+            <button class="bl-notification-close">&times;</button>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(notification);
+
+        // Обработчик закрытия
+        const closeHandler = () => {
+            notification.classList.add('bl-notification-hiding');
+            setTimeout(() => {
+                notification.remove();
+                overlay.remove();
+                clearTimeout(notificationTimer);
+            }, 200);
+        };
+
+        notification.querySelector('.bl-notification-close').addEventListener('click', closeHandler);
+        overlay.addEventListener('click', closeHandler);
+
+        // Клик по уведомлению
+        if (onClick) {
+            notification.addEventListener('click', (e) => {
+                if (e.target.classList.contains('bl-notification-close')) return;
+                onClick();
+                closeHandler();
+            });
+            notification.style.cursor = 'pointer';
+        }
+
+        // Автоматическое закрытие
+        clearTimeout(notificationTimer);
+        if (duration > 0) {
+            notificationTimer = setTimeout(closeHandler, duration);
+        }
+
+        return notification;
+    }
+
+    // Инжектим стили
+    GM_addStyle(`
+        .bl-notification-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 99999;
+            animation: bl-fade-in 0.15s ease;
+        }
+
+        .bl-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 300px;
+            max-width: 450px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            z-index: 100000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.4;
+            animation: bl-slide-in 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .bl-notification.bl-notification-hiding {
+            animation: bl-slide-out 0.2s ease forwards;
+        }
+
+        .bl-notification-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .bl-notification-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .bl-notification-title {
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .bl-notification-message {
+            color: #666;
+            font-size: 13px;
+            word-break: break-word;
+        }
+
+        .bl-notification-close {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            color: #999;
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .bl-notification-close:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: #333;
+        }
+
+        /* Типы уведомлений */
+        .bl-notification-info {
+            border-left: 4px solid #4a8fda;
+        }
+        .bl-notification-info .bl-notification-icon {
+            color: #4a8fda;
+        }
+
+        .bl-notification-success {
+            border-left: 4px solid #4caf50;
+        }
+        .bl-notification-success .bl-notification-icon {
+            color: #4caf50;
+        }
+
+        .bl-notification-warning {
+            border-left: 4px solid #ff9800;
+        }
+        .bl-notification-warning .bl-notification-icon {
+            color: #ff9800;
+        }
+
+        .bl-notification-error {
+            border-left: 4px solid #f44336;
+        }
+        .bl-notification-error .bl-notification-icon {
+            color: #f44336;
+        }
+
+        /* Анимации */
+        @keyframes bl-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes bl-slide-in {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes bl-slide-out {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+
+        /* Мобильная адаптивность */
+        @media (max-width: 480px) {
+            .bl-notification {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                min-width: auto;
+                max-width: none;
+            }
+        }
+    `);
+
     // ========== ТОКЕН ==========
 
     function getToken() {
@@ -81,7 +309,7 @@ const BOOTLOADER = {
             token = prompt(`Введите GitHub-токен для ${BOOTLOADER.tokenLabel}:`, 'github_pat_...');
             if (token) {
                 GM_setValue(BOOTLOADER.tokenKey, token);
-                GM_notification({ title: 'Готово!', text: 'Токен сохранён.', timeout: 3000 });
+                showNotification('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
             }
         }
         return token;
@@ -91,7 +319,7 @@ const BOOTLOADER = {
         const t = prompt('Новый токен:', GM_getValue(BOOTLOADER.tokenKey) || '');
         if (t !== null) {
             GM_setValue(BOOTLOADER.tokenKey, t);
-            GM_notification({ title: 'Готово!', text: 'Токен обновлён.', timeout: 3000 });
+            showNotification('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
         }
     });
 
@@ -139,7 +367,7 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
-        GM_notification({ title: 'Кэш очищен', text: 'Скрипты обновятся при перезагрузке.', timeout: 3000 });
+        showNotification('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы', { type: 'info' });
         location.reload();
     });
 
@@ -268,12 +496,15 @@ const BOOTLOADER = {
                         const response = JSON.parse(r.responseText);
                         if (response.ticketUrl || response.ticket_link || response.url) {
                             const ticketUrl = response.ticketUrl || response.ticket_link || response.url;
-                            GM_notification({
-                                title: '📋 Создана заявка в Service Desk',
-                                text: `Нажмите, чтобы открыть: ${ticketUrl}`,
-                                timeout: 10000,
-                                onclick: () => window.open(ticketUrl, '_blank'),
-                            });
+                            showNotification(
+                                '📋 Создана заявка в Service Desk',
+                                'Нажмите, чтобы открыть',
+                                {
+                                    type: 'success',
+                                    duration: 8000,
+                                    onClick: () => window.open(ticketUrl, '_blank'),
+                                }
+                            );
                         }
                     } catch {
                         // Ответ не JSON - игнорируем
@@ -290,7 +521,7 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('📤 Отправить диагностику', () => {
         sendDiagnostics();
-        GM_notification({ title: 'Отправлено!', text: 'Диагностика отправлена в Service Desk.', timeout: 3000 });
+        showNotification('Отправлено!', 'Диагностика отправлена в Service Desk', { type: 'success' });
     });
 
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
@@ -299,11 +530,11 @@ const BOOTLOADER = {
         const token = getToken();
         if (!token) {
             if (!BOOTLOADER.silentErrors) {
-                GM_notification({
-                    title: 'Токен не указан',
-                    text: 'Укажите токен в меню Tampermonkey',
-                    timeout: 5000,
-                });
+                showNotification(
+                    'Токен не указан',
+                    'Укажите токен в меню Tampermonkey',
+                    { type: 'error' }
+                );
             }
             return;
         }
@@ -372,20 +603,20 @@ const BOOTLOADER = {
                 });
 
                 if (!BOOTLOADER.silentErrors) {
-                    GM_notification({
-                        title: `Ошибка: ${name}`,
-                        text: 'Невозможно загрузить скрипт. Обратитесь в Service Desk.',
-                        timeout: 10000,
-                    });
+                    showNotification(
+                        `Ошибка: ${name}`,
+                        'Невозможно загрузить скрипт. Обратитесь в Service Desk.',
+                        { type: 'error', duration: 8000 }
+                    );
                 } else {
                     // Silent mode: показываем уведомление только если нет даже кэша
                     const hasStaleCache = getCache(name, true);
                     if (!hasStaleCache) {
-                        GM_notification({
-                            title: `⚠️ Проблемы с ${name}`,
-                            text: 'Скрипт недоступен. Функционал может быть ограничен.',
-                            timeout: 5000,
-                        });
+                        showNotification(
+                            `⚠️ Проблемы с ${name}`,
+                            'Скрипт недоступен. Функционал может быть ограничен.',
+                            { type: 'warning' }
+                        );
                     }
                 }
             }
