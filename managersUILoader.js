@@ -34,6 +34,11 @@ const BOOTLOADER = {
         'keetleCRM.js',
     ],
 
+    // Отображаемые имена скриптов (для статуса)
+    scriptNames: {
+        'keetleCRM.js': 'Котёл лидов',
+    },
+
     // GitHub конфиг
     repoBase: 'https://api.github.com/repos/eliasreimer/managersUI/contents/',
 
@@ -553,26 +558,32 @@ const BOOTLOADER = {
                 { type: 'info' }
             ).then(async (result) => {
                 if (result) {
-                    // Проверяем токен перед сохранением
-                    showToast('Проверка токена...', 'Проверяю доступ к GitHub', { type: 'info', duration: 0 });
+                    // Сохраняем токен сразу
+                    GM_setValue(BOOTLOADER.tokenKey, result);
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
+                    GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
 
+                    // Показываем что сохраняем
+                    const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
+
+                    // Проверяем токен
                     const isValid = await validateToken(result);
 
-                    // Удаляем "проверка" уведомление
-                    const checkingToast = document.querySelector('.bl-toast');
-                    if (checkingToast && checkingToast.textContent.includes('Проверка')) {
-                        checkingToast.remove();
-                        const overlay = document.querySelector('.bl-overlay');
-                        if (overlay) overlay.remove();
+                    // Удаляем уведомление о сохранении
+                    const oldToast = document.querySelector('.bl-toast');
+                    if (oldToast) {
+                        oldToast.classList.add('bl-toast-hiding');
+                        setTimeout(() => oldToast.remove(), 200);
                     }
+                    const overlay = document.querySelector('.bl-overlay');
+                    if (overlay) overlay.remove();
 
                     if (isValid) {
-                        GM_setValue(BOOTLOADER.tokenKey, result);
                         GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
-                        GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
                         showToast('✅ Токен сохранён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
                         loadAll(); // Перезапускаем загрузку
                     } else {
+                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
                         showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
                     }
                 }
@@ -586,38 +597,45 @@ const BOOTLOADER = {
         const currentToken = GM_getValue(BOOTLOADER.tokenKey) || '';
         const tokenStatus = GM_getValue(BOOTLOADER.tokenKey + '_status', 'unknown');
         const statusText = {
-            'valid': '✅ Проверен и работает',
+            'valid': '✅ Проверен',
             'invalid': '❌ Неверный',
+            'checking': '⏳ Проверяется...',
             'unknown': '❓ Не проверялся'
         }[tokenStatus] || '❓ Не проверялся';
 
         showPrompt(
-            `Введите новый токен (${statusText})`,
+            `Токен (${statusText})`,
             'Оставьте пустым чтобы удалить токен',
             currentToken ? '••••••••••••••••' : '',
             { type: 'info', maskInput: true }
         ).then(async (result) => {
             if (result !== null) {
                 if (result) {
-                    // Проверяем токен перед сохранением
-                    showToast('Проверка токена...', 'Проверяю доступ к GitHub', { type: 'info', duration: 0 });
+                    // Сохраняем токен сразу
+                    GM_setValue(BOOTLOADER.tokenKey, result);
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'checking');
+                    GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
 
+                    // Показываем что сохраняем
+                    const savingToast = showToast('💾 Сохраняю...', 'Токен сохранён, проверяю доступ', { type: 'info', duration: 0 });
+
+                    // Проверяем токен
                     const isValid = await validateToken(result);
 
-                    // Удаляем "проверка" уведомление
-                    const checkingToast = document.querySelector('.bl-toast');
-                    if (checkingToast && checkingToast.textContent.includes('Проверка')) {
-                        checkingToast.remove();
-                        const overlay = document.querySelector('.bl-overlay');
-                        if (overlay) overlay.remove();
+                    // Удаляем уведомление о сохранении
+                    const oldToast = document.querySelector('.bl-toast');
+                    if (oldToast) {
+                        oldToast.classList.add('bl-toast-hiding');
+                        setTimeout(() => oldToast.remove(), 200);
                     }
+                    const overlay = document.querySelector('.bl-overlay');
+                    if (overlay) overlay.remove();
 
                     if (isValid) {
-                        GM_setValue(BOOTLOADER.tokenKey, result);
                         GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
-                        GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
                         showToast('✅ Токен обновлён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
                     } else {
+                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'invalid');
                         showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
                     }
                 } else {
@@ -673,24 +691,28 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
-        showToast('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы', { type: 'info' });
-        setTimeout(() => location.reload(), 1000);
+        const toast = showToast('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы...', { type: 'info', duration: 0 });
+        setTimeout(() => {
+            toast.classList.add('bl-toast-hiding');
+            setTimeout(() => location.reload(), 200);
+        }, 2000);
     });
 
     GM_registerMenuCommand('📊 Статус кэша скриптов', () => {
         const lines = BOOTLOADER.scripts.map(name => {
             const cached = getCache(name, true);
+            const displayName = BOOTLOADER.scriptNames[name] || name;
             if (cached) {
                 const ageClass = cached.age < 60 ? 'text-green' : 'text-orange';
                 return `<div class="status-item status-ok">
                     <span class="status-icon">✅</span>
-                    <span class="status-name">${name}</span>
+                    <span class="status-name">${displayName}</span>
                     <span class="status-info ${ageClass}">${cached.age} мин назад</span>
                 </div>`;
             }
             return `<div class="status-item status-error">
                 <span class="status-icon">❌</span>
-                <span class="status-name">${name}</span>
+                <span class="status-name">${displayName}</span>
                 <span class="status-info text-red">не в кэше</span>
             </div>`;
         }).join('');
@@ -718,13 +740,13 @@ const BOOTLOADER = {
 
             tokenStatusHtml = `<div class="status-item status-ok">
                 <span class="status-icon">🔑</span>
-                <span class="status-name">Токен GitHub</span>
+                <span class="status-name">Токен</span>
                 <span class="status-info">${statusIcon} ${statusText}${tokenAge !== null ? ` (${tokenAge} мин назад)` : ''}</span>
             </div>`;
         } else {
             tokenStatusHtml = `<div class="status-item status-error">
                 <span class="status-icon">🔑</span>
-                <span class="status-name">Токен GitHub</span>
+                <span class="status-name">Токен</span>
                 <span class="status-info text-red">не установлен</span>
             </div>`;
         }
@@ -742,12 +764,9 @@ const BOOTLOADER = {
                     ${tokenStatusHtml}
                 </div>
             </div>
-            <div class="status-meta">
-                Bootloader v${diagnostics.bootloaderVersion}
-            </div>
         `;
 
-        showModal('Статус системы', content);
+        showModal('Статус системы:', content);
     });
 
     // Стили для статуса
