@@ -5,7 +5,7 @@
  */
 const BOOTLOADER = {
     // Дебаг: логи в консоль
-    debug: false,
+    debug: true,
 
     // Кэширование скриптов (GM_setValue)
     cache: {
