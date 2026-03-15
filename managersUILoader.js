@@ -49,7 +49,7 @@ const BOOTLOADER = {
 
     const diagnostics = {
         startTime: Date.now(),
-        bootloaderVersion: '1.4.1',
+        bootloaderVersion: '1.4.2',
         scripts: [],
         cacheHits: 0,
         cacheMisses: 0,
@@ -520,6 +520,29 @@ const BOOTLOADER = {
 
     // ========== ТОКЕН ==========
 
+    // Проверка токена - простая проверка что он работает
+    function validateToken(token) {
+        return new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: 'https://api.github.com/user',
+                timeout: 5000,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'Tampermonkey Bootloader',
+                },
+                onload(r) {
+                    if (r.status === 200) resolve(true);
+                    else if (r.status === 401 || r.status === 403) resolve(false);
+                    else resolve(true); // Другие ошибки считаем ок (может быть rate limit)
+                },
+                onerror: () => resolve(false),
+                ontimeout: () => resolve(false),
+            });
+        });
+    }
+
     function getToken() {
         let token = GM_getValue(BOOTLOADER.tokenKey);
         if (!token) {
@@ -528,11 +551,30 @@ const BOOTLOADER = {
                 'Токен нужен для загрузки скриптов. Получите его на github.com/settings/tokens',
                 'github_pat_...',
                 { type: 'info' }
-            ).then((result) => {
+            ).then(async (result) => {
                 if (result) {
-                    GM_setValue(BOOTLOADER.tokenKey, result);
-                    showToast('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
-                    loadAll(); // Перезапускаем загрузку
+                    // Проверяем токен перед сохранением
+                    showToast('Проверка токена...', 'Проверяю доступ к GitHub', { type: 'info', duration: 0 });
+
+                    const isValid = await validateToken(result);
+
+                    // Удаляем "проверка" уведомление
+                    const checkingToast = document.querySelector('.bl-toast');
+                    if (checkingToast && checkingToast.textContent.includes('Проверка')) {
+                        checkingToast.remove();
+                        const overlay = document.querySelector('.bl-overlay');
+                        if (overlay) overlay.remove();
+                    }
+
+                    if (isValid) {
+                        GM_setValue(BOOTLOADER.tokenKey, result);
+                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
+                        GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
+                        showToast('✅ Токен сохранён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
+                        loadAll(); // Перезапускаем загрузку
+                    } else {
+                        showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
+                    }
                 }
             });
             return null;
@@ -542,19 +584,46 @@ const BOOTLOADER = {
 
     GM_registerMenuCommand('🔑 Изменить GitHub-токен', () => {
         const currentToken = GM_getValue(BOOTLOADER.tokenKey) || '';
+        const tokenStatus = GM_getValue(BOOTLOADER.tokenKey + '_status', 'unknown');
+        const statusText = {
+            'valid': '✅ Проверен и работает',
+            'invalid': '❌ Неверный',
+            'unknown': '❓ Не проверялся'
+        }[tokenStatus] || '❓ Не проверялся';
+
         showPrompt(
-            'Введите новый токен',
+            `Введите новый токен (${statusText})`,
             'Оставьте пустым чтобы удалить токен',
-            currentToken.substring(0, 20) + '...',
+            currentToken ? '••••••••••••••••' : '',
             { type: 'info', maskInput: true }
-        ).then((result) => {
+        ).then(async (result) => {
             if (result !== null) {
                 if (result) {
-                    GM_setValue(BOOTLOADER.tokenKey, result);
-                    showToast('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
+                    // Проверяем токен перед сохранением
+                    showToast('Проверка токена...', 'Проверяю доступ к GitHub', { type: 'info', duration: 0 });
+
+                    const isValid = await validateToken(result);
+
+                    // Удаляем "проверка" уведомление
+                    const checkingToast = document.querySelector('.bl-toast');
+                    if (checkingToast && checkingToast.textContent.includes('Проверка')) {
+                        checkingToast.remove();
+                        const overlay = document.querySelector('.bl-overlay');
+                        if (overlay) overlay.remove();
+                    }
+
+                    if (isValid) {
+                        GM_setValue(BOOTLOADER.tokenKey, result);
+                        GM_setValue(BOOTLOADER.tokenKey + '_status', 'valid');
+                        GM_setValue(BOOTLOADER.tokenKey + '_checked', Date.now());
+                        showToast('✅ Токен обновлён', 'Доступ к GitHub подтверждён', { type: 'success', duration: 3000 });
+                    } else {
+                        showToast('❌ Неверный токен', 'Проверьте токен и попробуйте снова', { type: 'error', duration: 5000 });
+                    }
                 } else {
                     GM_setValue(BOOTLOADER.tokenKey, '');
-                    showToast('Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
+                    GM_setValue(BOOTLOADER.tokenKey + '_status', 'deleted');
+                    showToast('⚠️ Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
                 }
             }
         });
@@ -626,16 +695,59 @@ const BOOTLOADER = {
             </div>`;
         }).join('');
 
+        // Статус токена
+        const token = GM_getValue(BOOTLOADER.tokenKey);
+        const tokenStatus = GM_getValue(BOOTLOADER.tokenKey + '_status', 'unknown');
+        const tokenChecked = GM_getValue(BOOTLOADER.tokenKey + '_checked', 0);
+        const tokenAge = tokenChecked ? Math.round((Date.now() - tokenChecked) / 60000) : null;
+
+        let tokenStatusHtml = '';
+        if (token) {
+            const statusIcon = {
+                'valid': '✅',
+                'invalid': '❌',
+                'deleted': '🗑️',
+                'unknown': '❓'
+            }[tokenStatus] || '❓';
+
+            const statusText = {
+                'valid': 'Проверен',
+                'invalid': 'Неверный',
+                'unknown': 'Не проверялся'
+            }[tokenStatus] || 'Не проверялся';
+
+            tokenStatusHtml = `<div class="status-item status-ok">
+                <span class="status-icon">🔑</span>
+                <span class="status-name">Токен GitHub</span>
+                <span class="status-info">${statusIcon} ${statusText}${tokenAge !== null ? ` (${tokenAge} мин назад)` : ''}</span>
+            </div>`;
+        } else {
+            tokenStatusHtml = `<div class="status-item status-error">
+                <span class="status-icon">🔑</span>
+                <span class="status-name">Токен GitHub</span>
+                <span class="status-info text-red">не установлен</span>
+            </div>`;
+        }
+
         const content = `
-            <div class="status-list">
-                ${lines}
+            <div class="status-section">
+                <div class="status-section-title">📦 Скрипты</div>
+                <div class="status-list">
+                    ${lines}
+                </div>
+            </div>
+            <div class="status-section">
+                <div class="status-section-title">🔐 Доступ</div>
+                <div class="status-list">
+                    ${tokenStatusHtml}
+                </div>
             </div>
             <div class="status-meta">
-                Версия bootloader: <strong>${diagnostics.bootloaderVersion}</strong>
+                Bootloader v${diagnostics.bootloaderVersion}
             </div>
         `;
 
-        showModal('Статус кэша скриптов', content, { width: '450px' });
+        showModal('Статус системы', content);
     });
 
     // Стили для статуса
@@ -690,6 +802,24 @@ const BOOTLOADER = {
             border-top: 1px solid #e0e0e0;
             font-size: 12px;
             color: #999;
+            text-align: center;
+        }
+
+        .status-section {
+            margin-bottom: 16px;
+        }
+
+        .status-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
     `);
 
@@ -770,6 +900,14 @@ const BOOTLOADER = {
         if (!BOOTLOADER.logging.enabled) return;
 
         const totalTime = Date.now() - diagnostics.startTime;
+
+        // Считаем summary для понимания
+        const scriptsOk = diagnostics.scripts.filter(s => s.events.some(e => e.event === 'executed')).length;
+        const scriptsError = diagnostics.scripts.filter(s => s.events.some(e => e.event === 'execution_error')).length;
+        const cachePercent = diagnostics.scripts.length > 0
+            ? Math.round((diagnostics.cacheHits / diagnostics.scripts.length) * 100)
+            : 0;
+
         const payload = {
             timestamp: new Date().toISOString(),
             bootloaderVersion: diagnostics.bootloaderVersion,
@@ -790,6 +928,15 @@ const BOOTLOADER = {
             performance: {
                 totalTime: totalTime,
             },
+            // Понятный summary для поддержки
+            summary: {
+                scriptsTotal: diagnostics.scripts.length,
+                scriptsOk,
+                scriptsError,
+                cachePercent,
+                hasErrors: diagnostics.errors.length > 0,
+                staleCacheUsed: diagnostics.staleCacheUsed,
+            },
         };
 
         GM_xmlhttpRequest({
@@ -804,37 +951,57 @@ const BOOTLOADER = {
                 if (r.status === 200 || r.status === 201) {
                     log.info('Диагностика отправлена');
 
-                    // Если в ответе есть ссылка на тикет - показываем менеджеру
+                    // Всегда показываем подтверждение
+                    let message = `Скриптов: ${scriptsOk}/${diagnostics.scripts.length}, Кэш: ${cachePercent}%`;
+
+                    // Если есть ссылка на тикет - добавляем
                     try {
                         const response = JSON.parse(r.responseText);
                         if (response.ticketUrl || response.ticket_link || response.url) {
                             const ticketUrl = response.ticketUrl || response.ticket_link || response.url;
                             showToast(
-                                '📋 Создана заявка в Service Desk',
-                                'Нажмите, чтобы открыть',
+                                '✅ Диагностика отправлена',
+                                message + ' — Нажмите, чтобы открыть заявку',
                                 {
                                     type: 'success',
-                                    duration: 8000,
+                                    duration: 10000,
                                     onClick: () => window.open(ticketUrl, '_blank'),
                                 }
                             );
+                            return;
                         }
                     } catch {
                         // Ответ не JSON - игнорируем
                     }
+
+                    // Обычное подтверждение без ссылки
+                    showToast(
+                        '✅ Диагностика отправлена',
+                        message,
+                        { type: 'success', duration: 5000 }
+                    );
                 } else {
                     log.warn(`Ошибка отправки диагностики: ${r.status}`);
+                    showToast(
+                        '❌ Ошибка отправки',
+                        `Код ответа: ${r.status}`,
+                        { type: 'error', duration: 5000 }
+                    );
                 }
             },
             onerror: (e) => {
                 log.warn('Не удалось отправить диагностику', e);
+                showToast(
+                    '❌ Ошибка сети',
+                    'Не удалось отправить диагностику. Проверьте подключение.',
+                    { type: 'error', duration: 5000 }
+                );
             },
         });
     }
 
     GM_registerMenuCommand('📤 Отправить диагностику', () => {
         sendDiagnostics();
-        showToast('Отправлено!', 'Диагностика отправлена в Service Desk', { type: 'success' });
     });
 
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
