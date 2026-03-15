@@ -5,7 +5,7 @@
  */
 const BOOTLOADER = {
     // Дебаг: логи в консоль
-    debug: true,
+    debug: false,
 
     // Кэширование скриптов (GM_setValue)
     cache: {
@@ -212,10 +212,8 @@ const BOOTLOADER = {
 
     function executeScript(name, content) {
         try {
-            const script = document.createElement('script');
-            script.textContent = `(function() { ${content} })();`;
-            (document.head || document.body || document.documentElement).appendChild(script);
-            script.remove();
+            // Выполняем код в userscript контексте, чтобы были доступны GM_* функции
+            eval(content);
             recordScriptEvent(name, 'executed');
             return true;
         } catch (e) {
