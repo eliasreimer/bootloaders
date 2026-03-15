@@ -91,11 +91,11 @@ const BOOTLOADER = {
 
         log.info(`Уведомление: [${type}] ${title} — ${message}`);
 
-        // Удаляем старые уведомления
-        const oldNotification = document.querySelector('.bl-notification');
-        const oldOverlay = document.querySelector('.bl-notification-overlay');
-        if (oldNotification) oldNotification.remove();
-        if (oldOverlay) oldOverlay.remove();
+        // Удаляем СТАРЫЕ toast/overlay (если есть от предыдущих вызовов)
+        const oldToasts = document.querySelectorAll('.bl-toast');
+        const oldOverlays = document.querySelectorAll('.bl-overlay');
+        oldToasts.forEach(t => t.remove());
+        oldOverlays.forEach(o => o.remove());
 
         // Создаём оверлей
         const overlay = document.createElement('div');
@@ -165,12 +165,6 @@ const BOOTLOADER = {
 
             log.info(`Prompt: [${type}] ${title}`);
 
-            // Удаляем старые toast
-            const oldToast = document.querySelector('.bl-toast');
-            const oldOverlay = document.querySelector('.bl-overlay');
-            if (oldToast) oldToast.remove();
-            if (oldOverlay) oldOverlay.remove();
-
             // Создаём оверлей
             const overlay = document.createElement('div');
             overlay.className = 'bl-overlay';
@@ -218,11 +212,17 @@ const BOOTLOADER = {
 
             // Обработчик закрытия
             const closeHandler = (result) => {
+                // Удаляем СТАРЫЕ toast/overlay если есть (от предыдущих вызовов)
+                const oldToasts = document.querySelectorAll('.bl-toast');
+                const oldOverlays = document.querySelectorAll('.bl-overlay');
+                oldToasts.forEach(t => t.remove());
+                oldOverlays.forEach(o => o.remove());
+
                 toast.classList.add('bl-toast-hiding');
                 setTimeout(() => {
                     toast.remove();
                     overlay.remove();
-                    resolve(result);  // Передаём как есть, не превращаем "" в null
+                    resolve(result);
                 }, 200);
             };
 
@@ -247,12 +247,6 @@ const BOOTLOADER = {
         } = options;
 
         log.info(`Modal: [${type}] ${title}`);
-
-        // Удаляем старые toast
-        const oldToast = document.querySelector('.bl-toast');
-        const oldOverlay = document.querySelector('.bl-overlay');
-        if (oldToast) oldToast.remove();
-        if (oldOverlay) oldOverlay.remove();
 
         // Создаём оверлей
         const overlay = document.createElement('div');
@@ -289,6 +283,12 @@ const BOOTLOADER = {
 
         // Обработчик закрытия
         const closeHandler = () => {
+            // Удаляем СТАРЫЕ toast/overlay если есть (от предыдущих вызовов)
+            const oldToasts = document.querySelectorAll('.bl-toast');
+            const oldOverlays = document.querySelectorAll('.bl-overlay');
+            oldToasts.forEach(t => t.remove());
+            oldOverlays.forEach(o => o.remove());
+
             toast.classList.add('bl-toast-hiding');
             setTimeout(() => {
                 toast.remove();
