@@ -49,7 +49,7 @@ const BOOTLOADER = {
 
     const diagnostics = {
         startTime: Date.now(),
-        bootloaderVersion: '1.3.0',
+        bootloaderVersion: '1.4.0',
         scripts: [],
         cacheHits: 0,
         cacheMisses: 0,
@@ -73,7 +73,7 @@ const BOOTLOADER = {
         ok:    (...a) => { if (BOOTLOADER.debug) console.log('%c[ManagersUI Bootloader]', 'color:#28a745;font-weight:600', ...a); },
     };
 
-    // ========== УВЕДОМЛЕНИЯ ==========
+    // ========== UI КОМПОНЕНТЫ ==========
 
     let notificationTimer = null;
 
@@ -151,8 +151,150 @@ const BOOTLOADER = {
         return notification;
     }
 
+    function showPrompt(title, message, placeholder = '', options = {}) {
+        return new Promise((resolve) => {
+            const {
+                type = 'info',
+                maskInput = false,  // скрывать ввод (для паролей)
+            } = options;
+
+            log.info(`Диалог: [${type}] ${title}`);
+
+            // Удаляем старые диалоги
+            const oldDialog = document.querySelector('.bl-dialog');
+            const oldOverlay = document.querySelector('.bl-dialog-overlay');
+            if (oldDialog) oldDialog.remove();
+            if (oldOverlay) oldOverlay.remove();
+
+            // Создаём оверлей
+            const overlay = document.createElement('div');
+            overlay.className = 'bl-dialog-overlay';
+
+            // Создаём диалог
+            const dialog = document.createElement('div');
+            dialog.className = 'bl-dialog';
+
+            const icon = {
+                info: '🔑',
+                success: '✅',
+                warning: '⚠️',
+                error: '❌',
+            }[type] || '🔑';
+
+            dialog.innerHTML = `
+                <div class="bl-dialog-icon">${icon}</div>
+                <div class="bl-dialog-content">
+                    <div class="bl-dialog-title">${title}</div>
+                    ${message ? `<div class="bl-dialog-message">${message}</div>` : ''}
+                    <div class="bl-dialog-inputs">
+                        <input type="${maskInput ? 'password' : 'text'}"
+                               class="bl-dialog-input"
+                               placeholder="${placeholder}"
+                               autocomplete="off">
+                    </div>
+                    <div class="bl-dialog-buttons">
+                        <button class="bl-dialog-btn bl-dialog-btn-cancel">Отмена</button>
+                        <button class="bl-dialog-btn bl-dialog-btn-confirm">OK</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+            document.body.appendChild(dialog);
+
+            const input = dialog.querySelector('.bl-dialog-input');
+            const btnConfirm = dialog.querySelector('.bl-dialog-btn-confirm');
+            const btnCancel = dialog.querySelector('.bl-dialog-btn-cancel');
+
+            // Фокус на input
+            setTimeout(() => input.focus(), 100);
+
+            // Обработчик закрытия
+            const closeHandler = (result) => {
+                dialog.classList.add('bl-dialog-closing');
+                setTimeout(() => {
+                    dialog.remove();
+                    overlay.remove();
+                    resolve(result || null);
+                }, 200);
+            };
+
+            btnCancel.addEventListener('click', () => closeHandler(null));
+            btnConfirm.addEventListener('click', () => closeHandler(input.value));
+
+            // Enter на input
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') closeHandler(input.value);
+                if (e.key === 'Escape') closeHandler(null);
+            });
+
+            // Клик на оверлей
+            overlay.addEventListener('click', () => closeHandler(null));
+        });
+    }
+
+    function showModal(title, content, options = {}) {
+        const {
+            type = 'info',
+            width = '400px',
+        } = options;
+
+        log.info(`Модальное окно: [${type}] ${title}`);
+
+        // Удаляем старые диалоги
+        const oldDialog = document.querySelector('.bl-dialog');
+        const oldOverlay = document.querySelector('.bl-dialog-overlay');
+        if (oldDialog) oldDialog.remove();
+        if (oldOverlay) oldOverlay.remove();
+
+        // Создаём оверлей
+        const overlay = document.createElement('div');
+        overlay.className = 'bl-dialog-overlay';
+
+        // Создаём диалог
+        const dialog = document.createElement('div');
+        dialog.className = 'bl-dialog';
+        if (width) dialog.style.maxWidth = width;
+
+        const icon = {
+            info: 'ℹ️',
+            success: '✅',
+            warning: '⚠️',
+            error: '❌',
+        }[type] || 'ℹ️';
+
+        dialog.innerHTML = `
+            <div class="bl-dialog-icon">${icon}</div>
+            <div class="bl-dialog-content">
+                <div class="bl-dialog-title">${title}</div>
+                <div class="bl-dialog-body">${content}</div>
+                <div class="bl-dialog-buttons">
+                    <button class="bl-dialog-btn bl-dialog-btn-confirm">Закрыть</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(dialog);
+
+        const btnConfirm = dialog.querySelector('.bl-dialog-btn-confirm');
+
+        // Обработчик закрытия
+        const closeHandler = () => {
+            dialog.classList.add('bl-dialog-closing');
+            setTimeout(() => {
+                dialog.remove();
+                overlay.remove();
+            }, 200);
+        };
+
+        btnConfirm.addEventListener('click', closeHandler);
+        overlay.addEventListener('click', closeHandler);
+    }
+
     // Инжектим стили
     GM_addStyle(`
+        /* ========== УВЕДОМЛЕНИЯ ========== */
         .bl-notification-overlay {
             position: fixed;
             top: 0;
@@ -162,6 +304,7 @@ const BOOTLOADER = {
             background: rgba(0, 0, 0, 0.3);
             z-index: 99999;
             animation: bl-fade-in 0.15s ease;
+            pointer-events: none;
         }
 
         .bl-notification {
@@ -182,7 +325,7 @@ const BOOTLOADER = {
             font-size: 14px;
             line-height: 1.4;
             animation: bl-slide-in 0.2s ease;
-            backdrop-filter: blur(10px);
+            pointer-events: auto;
         }
 
         .bl-notification.bl-notification-hiding {
@@ -261,7 +404,126 @@ const BOOTLOADER = {
             color: #f44336;
         }
 
-        /* Анимации */
+        /* ========== ДИАЛОГОВЫЕ ОКНА ========== */
+        .bl-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 99999;
+            animation: bl-fade-in 0.2s ease;
+        }
+
+        .bl-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 350px;
+            max-width: 500px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+            z-index: 100000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            animation: bl-scale-in 0.2s ease;
+            overflow: hidden;
+        }
+
+        .bl-dialog.bl-dialog-closing {
+            animation: bl-scale-out 0.2s ease forwards;
+        }
+
+        .bl-dialog-icon {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 32px;
+        }
+
+        .bl-dialog-content {
+            padding: 24px 24px 20px 70px;
+        }
+
+        .bl-dialog-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .bl-dialog-message {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .bl-dialog-body {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .bl-dialog-inputs {
+            margin-bottom: 16px;
+        }
+
+        .bl-dialog-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.15s;
+            box-sizing: border-box;
+        }
+
+        .bl-dialog-input:focus {
+            outline: none;
+            border-color: #4a8fda;
+        }
+
+        .bl-dialog-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .bl-dialog-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .bl-dialog-btn-cancel {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .bl-dialog-btn-cancel:hover {
+            background: #e0e0e0;
+        }
+
+        .bl-dialog-btn-confirm {
+            background: linear-gradient(135deg, #4a8fda 0%, #3a7fc8 100%);
+            color: white;
+        }
+
+        .bl-dialog-btn-confirm:hover {
+            background: linear-gradient(135deg, #3a7fc8 0%, #2a6fb6 100%);
+        }
+
+        /* ========== АНИМАЦИИ ========== */
         @keyframes bl-fade-in {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -289,7 +551,29 @@ const BOOTLOADER = {
             }
         }
 
-        /* Мобильная адаптивность */
+        @keyframes bl-scale-in {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        @keyframes bl-scale-out {
+            from {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+        }
+
+        /* ========== МОБИЛЬНАЯ АДАПТИВНОСТЬ ========== */
         @media (max-width: 480px) {
             .bl-notification {
                 top: 10px;
@@ -297,6 +581,15 @@ const BOOTLOADER = {
                 left: 10px;
                 min-width: auto;
                 max-width: none;
+            }
+
+            .bl-dialog {
+                min-width: calc(100vw - 40px);
+                max-width: calc(100vw - 40px);
+            }
+
+            .bl-dialog-content {
+                padding: 20px 20px 16px 60px;
             }
         }
     `);
@@ -306,21 +599,41 @@ const BOOTLOADER = {
     function getToken() {
         let token = GM_getValue(BOOTLOADER.tokenKey);
         if (!token) {
-            token = prompt(`Введите GitHub-токен для ${BOOTLOADER.tokenLabel}:`, 'github_pat_...');
-            if (token) {
-                GM_setValue(BOOTLOADER.tokenKey, token);
-                showNotification('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
-            }
+            showPrompt(
+                `Введите GitHub-токен для ${BOOTLOADER.tokenLabel}`,
+                'Токен нужен для загрузки скриптов. Получите его на github.com/settings/tokens',
+                'github_pat_...',
+                { type: 'info' }
+            ).then((result) => {
+                if (result) {
+                    GM_setValue(BOOTLOADER.tokenKey, result);
+                    showNotification('Готово!', 'Токен сохранён', { type: 'success', duration: 2500 });
+                    loadAll(); // Перезапускаем загрузку
+                }
+            });
+            return null;
         }
         return token;
     }
 
     GM_registerMenuCommand('🔑 Изменить GitHub-токен', () => {
-        const t = prompt('Новый токен:', GM_getValue(BOOTLOADER.tokenKey) || '');
-        if (t !== null) {
-            GM_setValue(BOOTLOADER.tokenKey, t);
-            showNotification('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
-        }
+        const currentToken = GM_getValue(BOOTLOADER.tokenKey) || '';
+        showPrompt(
+            'Введите новый токен',
+            'Оставьте пустым чтобы удалить токен',
+            currentToken.substring(0, 20) + '...',
+            { type: 'info', maskInput: true }
+        ).then((result) => {
+            if (result !== null) {
+                if (result) {
+                    GM_setValue(BOOTLOADER.tokenKey, result);
+                    showNotification('Готово!', 'Токен обновлён', { type: 'success', duration: 2500 });
+                } else {
+                    GM_setValue(BOOTLOADER.tokenKey, '');
+                    showNotification('Токен удалён', 'Введите новый токен для продолжения работы', { type: 'warning' });
+                }
+            }
+        });
     });
 
     // ========== КЭШ ==========
@@ -368,17 +681,93 @@ const BOOTLOADER = {
     GM_registerMenuCommand('🔄 Принудительно обновить скрипты', () => {
         clearAllCache();
         showNotification('Кэш очищен', 'Скрипты обновятся при перезагрузке страницы', { type: 'info' });
-        location.reload();
+        setTimeout(() => location.reload(), 1000);
     });
 
     GM_registerMenuCommand('📊 Статус кэша скриптов', () => {
         const lines = BOOTLOADER.scripts.map(name => {
             const cached = getCache(name, true);
-            if (cached) return `✅ ${name} — в кэше (${cached.age} мин назад)`;
-            return `❌ ${name} — не в кэше`;
-        });
-        alert('Статус кэша:\n\n' + lines.join('\n'));
+            if (cached) {
+                const ageClass = cached.age < 60 ? 'text-green' : 'text-orange';
+                return `<div class="status-item status-ok">
+                    <span class="status-icon">✅</span>
+                    <span class="status-name">${name}</span>
+                    <span class="status-info ${ageClass}">${cached.age} мин назад</span>
+                </div>`;
+            }
+            return `<div class="status-item status-error">
+                <span class="status-icon">❌</span>
+                <span class="status-name">${name}</span>
+                <span class="status-info text-red">не в кэше</span>
+            </div>`;
+        }).join('');
+
+        const content = `
+            <div class="status-list">
+                ${lines}
+            </div>
+            <div class="status-meta">
+                Версия bootloader: <strong>${diagnostics.bootloaderVersion}</strong>
+            </div>
+        `;
+
+        showModal('Статус кэша скриптов', content, { width: '450px' });
     });
+
+    // Стили для статуса
+    GM_addStyle(`
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .status-item.status-ok {
+            border-left: 3px solid #4caf50;
+        }
+
+        .status-item.status-error {
+            border-left: 3px solid #f44336;
+        }
+
+        .status-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .status-name {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .status-info {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .text-green { color: #4caf50; }
+        .text-orange { color: #ff9800; }
+        .text-red { color: #f44336; }
+
+        .status-meta {
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #999;
+        }
+    `);
 
     // ========== ЗАГРУЗКА ==========
 
