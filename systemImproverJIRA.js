@@ -21,6 +21,7 @@ const BOOTLOADER = {
         'priorityConfirmationButton.js',
         'aboutUserTooltip.js',
         'announcementBannerCollapse.js',
+        'confluenceReportCheckButton.js',
     ],
 
     repoBase: 'https://api.github.com/repos/eliasreimer/systemImproverJira/contents/',
