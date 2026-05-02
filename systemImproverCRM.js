@@ -21,7 +21,9 @@ const BOOTLOADER = {
     requestTimeoutMs: 15000,
 
     // Скрипты (порядок = порядок загрузки)
+    // uiKit.js — первый, задаёт пространство имён и компоненты
     scripts: [
+        'uiKit.js',
         'helperApi.js',
         'copyID.js',
         'scenariosInfo.js',
@@ -36,8 +38,21 @@ const BOOTLOADER = {
         'scenarioLogs.js',
     ],
 
+    // Ленивая загрузка — только для определённых URL
+    // Если скрипт указан здесь, он загрузится только если location.pathname совпадает
+    lazyScripts: {
+        // 'helperApi.js': '/api-keys',      // пример: только на странице API-токенов
+        // 'scenarioLogs.js': '/scenario-logs',
+    },
+
     // Базовый URL репозитория
     repoBase: 'https://api.github.com/repos/eliasreimer/systemImproverCRM/contents/',
+
+    // Режим загрузки: 'tree' (один запрос) или 'individual' (по одному, fallback)
+    fetchMode: 'tree',
+
+    // Branch
+    branch: 'master',
 };
 
 (function() {
@@ -90,13 +105,13 @@ const BOOTLOADER = {
         const content = GM_getValue(cacheKey(name));
         if (!content) return null;
 
-        return { content, sha: meta.sha, age: Math.round(age) };
+        return { content, sha: meta.sha, treeSha: meta.treeSha, age: Math.round(age) };
     }
 
-    function setCache(name, content, sha) {
+    function setCache(name, content, sha, treeSha) {
         if (!BOOTLOADER.cache.enabled) return;
         GM_setValue(cacheKey(name), content);
-        GM_setValue(cacheMeta(name), { ts: Date.now(), sha });
+        GM_setValue(cacheMeta(name), { ts: Date.now(), sha, treeSha });
     }
 
     function clearAllCache() {
@@ -123,7 +138,7 @@ const BOOTLOADER = {
 
     // ========== ЗАГРУЗКА ==========
 
-    function fetchScript(url, token, retriesLeft) {
+    function fetchJSON(url, token, retriesLeft) {
         return new Promise((resolve, reject) => {
             const attempt = (n) => {
                 GM_xmlhttpRequest({
@@ -137,7 +152,8 @@ const BOOTLOADER = {
                     },
                     onload(r) {
                         if (r.status === 200) {
-                            resolve(r.responseText);
+                            try { resolve(JSON.parse(r.responseText)); }
+                            catch (e) { reject(new Error(`JSON parse error: ${url}`)); }
                         } else if (n > 0) {
                             log.warn(`Ретрай ${url} (${r.status})...`);
                             setTimeout(() => attempt(n - 1), BOOTLOADER.retryDelayMs);
@@ -167,10 +183,8 @@ const BOOTLOADER = {
         });
     }
 
-    function decodeContent(responseText) {
-        const data = JSON.parse(responseText);
-        const base64 = data.content.replace(/\s/g, '');
-        const binary = atob(base64);
+    function decodeContent(base64Str) {
+        const binary = atob(base64Str.replace(/\s/g, ''));
         return new TextDecoder('utf-8').decode(
             new Uint8Array([...binary].map(c => c.charCodeAt(0)))
         );
@@ -188,6 +202,23 @@ const BOOTLOADER = {
         }
     }
 
+    // ========== ОДИН ЗАПРОС (tree mode) ==========
+
+    async function fetchTree(token) {
+        const url = `https://api.github.com/repos/eliasreimer/systemImproverCRM/git/trees/${BOOTLOADER.branch}?recursive=1`;
+        return fetchJSON(url, token, BOOTLOADER.retries);
+    }
+
+    function shouldLoadScript(name) {
+        const pattern = BOOTLOADER.lazyScripts[name];
+        if (!pattern) return true;
+        return window.location.pathname.includes(pattern);
+    }
+
+    function getScriptsToLoad() {
+        return BOOTLOADER.scripts.filter(name => shouldLoadScript(name));
+    }
+
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
 
     async function loadAll() {
@@ -195,12 +226,13 @@ const BOOTLOADER = {
         if (!token) return;
 
         const t0 = performance.now();
-        log.info(`Загрузка ${BOOTLOADER.scripts.length} скриптов...`);
+        const scriptsToLoad = getScriptsToLoad();
+        log.info(`Загрузка ${scriptsToLoad.length} скриптов (из ${BOOTLOADER.scripts.length} общих)...`);
 
         // Фаза 1: мгновенный запуск из кэша
         const needsFetch = [];
 
-        BOOTLOADER.scripts.forEach(name => {
+        for (const name of scriptsToLoad) {
             const cached = getCache(name);
             if (cached) {
                 log.ok(`${name} — из кэша (${cached.age} мин)`);
@@ -208,7 +240,7 @@ const BOOTLOADER = {
             } else {
                 needsFetch.push(name);
             }
-        });
+        }
 
         if (needsFetch.length === 0) {
             log.ok(`Все скрипты из кэша за ${Math.round(performance.now() - t0)} мс`);
@@ -216,18 +248,63 @@ const BOOTLOADER = {
             return;
         }
 
-        // Фаза 2: загрузка отсутствующих в кэше
-        log.info(`Загрузка с GitHub: ${needsFetch.join(', ')}`);
+        // Фаза 2: загрузка
+        if (BOOTLOADER.fetchMode === 'tree') {
+            await loadViaTree(token, needsFetch, t0);
+        } else {
+            await loadIndividual(token, needsFetch, t0);
+        }
+    }
+
+    async function loadViaTree(token, needsFetch, t0) {
+        log.info(`Tree mode: загрузка ${needsFetch.length} скриптов одним запросом...`);
+
+        try {
+            const treeData = await fetchTree(token);
+            const fileMap = {};
+
+            for (const item of treeData.tree) {
+                if (item.type === 'blob') {
+                    fileMap[item.path] = item;
+                }
+            }
+
+            // Загружаем только отсутствующие файлы (пропускаем uiKit.js если в кэше)
+            const fetchPromises = needsFetch.map(async (name) => {
+                const file = fileMap[name];
+                if (!file) {
+                    log.error(`${name} — не найден в репозитории`);
+                    return;
+                }
+
+                // Декодируем прямо из tree response
+                const content = decodeContent(file.content);
+                setCache(name, content, file.sha, treeData.sha);
+                executeScript(name, content);
+                log.ok(`${name} — загружен`);
+            });
+
+            await Promise.all(fetchPromises);
+
+            log.ok(`Загрузка завершена за ${Math.round(performance.now() - t0)} мс`);
+
+        } catch (e) {
+            log.warn(`Tree mode не удался: ${e.message}, переключаюсь на individual...`);
+            await loadIndividual(token, needsFetch, t0);
+        }
+    }
+
+    async function loadIndividual(token, needsFetch, t0) {
+        log.info(`Individual mode: загрузка ${needsFetch.length} скриптов...`);
 
         await Promise.all(needsFetch.map(async (name) => {
             const url = BOOTLOADER.repoBase + name;
             const ts = performance.now();
             try {
-                const raw = await fetchScript(url, token, BOOTLOADER.retries);
-                const data = JSON.parse(raw);
-                const content = decodeContent(raw);
+                const data = await fetchJSON(url, token, BOOTLOADER.retries);
+                const content = decodeContent(data.content);
 
-                setCache(name, content, data.sha);
+                setCache(name, content, data.sha, null);
                 executeScript(name, content);
 
                 log.ok(`${name} — загружен за ${Math.round(performance.now() - ts)} мс`);
@@ -240,25 +317,32 @@ const BOOTLOADER = {
         log.ok(`Загрузка завершена за ${Math.round(performance.now() - t0)} мс`);
     }
 
-    // Фоновая проверка обновлений для закэшированных скриптов
+    // Фоновая проверка обновлений (по tree SHA — один запрос)
     async function backgroundUpdate(token) {
         log.info('Фоновая проверка обновлений...');
 
-        for (const name of BOOTLOADER.scripts) {
-            const url = BOOTLOADER.repoBase + name;
-            try {
-                const raw = await fetchScript(url, token, 1);
-                const data = JSON.parse(raw);
+        try {
+            const treeData = await fetchTree(token);
+            const scriptsToLoad = getScriptsToLoad();
+
+            for (const name of scriptsToLoad) {
                 const meta = GM_getValue(cacheMeta(name));
 
-                if (meta && meta.sha === data.sha) continue;
+                // Проверяем tree SHA — если не поменялся, пропускаем весь репо
+                if (meta && meta.treeSha === treeData.sha) continue;
 
-                const content = decodeContent(raw);
-                setCache(name, content, data.sha);
+                // Ищем файл в tree
+                const file = treeData.tree.find(f => f.path === name);
+                if (!file) continue;
+
+                if (meta && meta.sha === file.sha) continue;
+
+                const content = decodeContent(file.content);
+                setCache(name, content, file.sha, treeData.sha);
                 log.info(`${name} — обновлён в кэше (новый SHA)`);
-            } catch {
-                // Тихо пропускаем — не критично
             }
+        } catch {
+            // Тихо пропускаем — не критично
         }
 
         log.ok('Фоновая проверка завершена');
