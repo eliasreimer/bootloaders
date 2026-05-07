@@ -34,6 +34,7 @@ const BOOTLOADER = {
         'fieldSettingsOpener.js',
         'apiLinkButton.js',
         'scenarioLogs.js',
+        'mothersScenarioPanel.js',
     ],
 
     // Базовый URL репозитория
