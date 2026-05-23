@@ -117,26 +117,26 @@ const BOOTLOADER = {
     function formatTs(ts) {
         const d = new Date(ts);
         const p = n => String(n).padStart(2, '0');
-        return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+        return `${p(d.getDate())}.${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     }
 
     GM_registerMenuCommand('📋 Статус скриптов', () => {
         const now = Date.now();
         const ttlMs = BOOTLOADER.cache.ttlMinutes * 60 * 1000;
         const lines = BOOTLOADER.scripts.map(name => {
-            const cached = getCache(name);
-            if (!cached) return `❌ ${name}\n   Не в кэше`;
-            const ageMs = now - GM_getValue(cacheMeta(name)).ts;
-            const ageMin = Math.round(ageMs / 60000);
+            const meta = GM_getValue(cacheMeta(name));
+            if (!meta || !GM_getValue(cacheKey(name))) return `❌ ${name}`;
+            const ageMs = now - meta.ts;
             const fresh = ageMs <= ttlMs;
             const status = fresh ? '✅' : '⚠️';
-            const hint = fresh ? 'актуален' : `истёк (${ageMin} мин)`;
-            const ts = formatTs(GM_getValue(cacheMeta(name)).ts);
-            return `${status} ${name}\n   Кэш: ${ts} | SHA: ${cached.sha.slice(0,7)} | ${hint}`;
+            const ts = formatTs(meta.ts);
+            const sha = (meta.sha || '').slice(0, 7);
+            return `${status} ${name}  ${sha}  ${ts}`;
         });
+        const fresh = lines.filter(l => l.startsWith('✅')).length;
         const lastBg = GM_getValue('last_bg_check');
-        const footer = lastBg ? `\n🔍 Фоновая проверка: ${formatTs(lastBg)}` : '';
-        alert('📋 Статус скриптов\n' + '─'.repeat(36) + '\n\n' + lines.join('\n\n') + footer);
+        const footer = lastBg ? `\n🔍 Обновление: ${formatTs(lastBg)}` : '';
+        alert(`📋 Статус: ${fresh}/${BOOTLOADER.scripts.length} актуально\n\n${lines.join('\n')}${footer}`);
     });
 
     // ========== ЗАГРУЗКА ==========
