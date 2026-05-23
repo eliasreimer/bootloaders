@@ -22,6 +22,7 @@ const BOOTLOADER = {
 
     // Скрипты (порядок = порядок загрузки)
     scripts: [
+        '_shared.js',
         'helperApi.js',
         'copyID.js',
         'scenariosInfo.js',
