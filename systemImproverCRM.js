@@ -120,6 +120,30 @@ const BOOTLOADER = {
         return `${p(d.getDate())}.${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     }
 
+    function showModal(title, bodyHtml) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.3);width:420px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;';
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e2e2;';
+        hdr.innerHTML = `<span style="font-size:15px;font-weight:600;color:#222">${title}</span>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:#888;padding:0 4px;line-height:1;';
+        closeBtn.onclick = () => overlay.remove();
+        hdr.appendChild(closeBtn);
+        const body = document.createElement('div');
+        body.style.cssText = 'padding:14px 18px;overflow-y:auto;font-size:13px;line-height:1.7;color:#222;white-space:pre;font-family:Consolas,Monaco,monospace;';
+        body.innerHTML = bodyHtml;
+        box.appendChild(hdr);
+        box.appendChild(body);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        closeBtn.focus();
+    }
+
     GM_registerMenuCommand('📋 Статус скриптов', () => {
         const now = Date.now();
         const ttlMs = BOOTLOADER.cache.ttlMinutes * 60 * 1000;
@@ -136,7 +160,7 @@ const BOOTLOADER = {
         const fresh = lines.filter(l => l.startsWith('✅')).length;
         const lastBg = GM_getValue('last_bg_check');
         const footer = lastBg ? `\n🔍 Обновление: ${formatTs(lastBg)}` : '';
-        alert(`📋 Статус: ${fresh}/${BOOTLOADER.scripts.length} актуально\n\n${lines.join('\n')}${footer}`);
+        showModal('Статус скриптов', `📋 Актуально: <b>${fresh}/${BOOTLOADER.scripts.length}</b>\n\n${lines.join('\n')}${footer}`);
     });
 
     // ========== ЗАГРУЗКА ==========
