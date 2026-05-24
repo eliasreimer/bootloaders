@@ -23,6 +23,7 @@ const BOOTLOADER = {
     // Скрипты (порядок = порядок загрузки)
     scripts: [
         '_shared.js',
+        'scenarioSidebar.js',
         'helperApi.js',
         'copyID.js',
         // 'scenariosInfo.js', — временно отключён
@@ -36,7 +37,6 @@ const BOOTLOADER = {
         'apiLinkButton.js',
         'scenarioLogs.js',
         // 'mothersScenarioPanel.js', — отключён, заменён на scenarioSidebar.js
-        'scenarioSidebar.js',
     ],
 
     // Базовый URL репозитория
