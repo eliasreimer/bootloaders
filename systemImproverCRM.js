@@ -25,7 +25,7 @@ const BOOTLOADER = {
         '_shared.js',
         'helperApi.js',
         'copyID.js',
-        'scenariosInfo.js',
+        // 'scenariosInfo.js', — временно отключён
         'whoExportedIt.js',
         'viewingActivity.js',
         'nestedScenarios.js',
