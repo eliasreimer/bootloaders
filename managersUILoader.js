@@ -433,7 +433,7 @@ const KETTLE_BOOT = {
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
 
     async function loadAll() {
-        const token = getToken();
+        const token = await getToken();
         if (!token) return;
 
         const t0 = performance.now();
