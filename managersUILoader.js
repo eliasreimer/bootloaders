@@ -50,7 +50,7 @@ const KETTLE_BOOT = {
     ],
 };
 
-console.log('[Kettle Boot] Загрузчик запущен');
+console.log('[Котёл] Загрузчик запущен');
 
 // ========== Захват GM_* API ==========
     // GM_* доступны из внешнего scope (new Function в Tampermonkey shell).
@@ -63,10 +63,10 @@ console.log('[Kettle Boot] Загрузчик запущен');
     // ========== ЛОГИРОВАНИЕ ==========
 
     const log = {
-        info:  (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Kettle Boot]', 'color:#ff9800;font-weight:600', ...a); },
-        warn:  (...a) => { if (KETTLE_BOOT.debug) console.warn('%c[Kettle Boot]', 'color:#ff5722;font-weight:600', ...a); },
-        error: (...a) => { if (KETTLE_BOOT.debug) console.error('%c[Kettle Boot]', 'color:#dc3545;font-weight:600', ...a); },
-        ok:    (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Kettle Boot]', 'color:#4CAF50;font-weight:600', ...a); },
+        info:  (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#ff9800;font-weight:600', ...a); },
+        warn:  (...a) => { if (KETTLE_BOOT.debug) console.warn('%c[Котёл]', 'color:#ff5722;font-weight:600', ...a); },
+        error: (...a) => { if (KETTLE_BOOT.debug) console.error('%c[Котёл]', 'color:#dc3545;font-weight:600', ...a); },
+        ok:    (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#4CAF50;font-weight:600', ...a); },
     };
 
     // ========== ТОКЕН ==========
@@ -435,9 +435,9 @@ console.log('[Kettle Boot] Загрузчик запущен');
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
 
     async function loadAll() {
-        console.log('[Kettle Boot] loadAll() вызван');
+        console.log('[Котёл] loadAll() вызван');
         const token = await getToken();
-        console.log('[Kettle Boot] токен:', token ? 'получен' : 'отсутствует');
+        console.log('[Котёл] токен:', token ? 'получен' : 'отсутствует');
         if (!token) return;
 
         const t0 = performance.now();
@@ -513,5 +513,5 @@ console.log('[Kettle Boot] Загрузчик запущен');
 
     // ========== ЗАПУСК ==========
 
-    console.log('[Kettle Boot] Вызов loadAll()');
-    loadAll().catch(e => console.error('[Kettle Boot] Фатальная ошибка loadAll():', e));
+    console.log('[Котёл] Вызов loadAll()');
+    loadAll().catch(e => console.error('[Котёл] Фатальная ошибка loadAll():', e));
