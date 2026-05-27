@@ -18,7 +18,7 @@
  */
 const KETTLE_BOOT = {
     // Дебаг: логи в консоль
-    debug: false,
+    debug: true,
 
     // Кэширование скриптов (GM_setValue)
     cache: {
@@ -53,6 +53,58 @@ const KETTLE_BOOT = {
 
 console.log('[Котёл] Загрузчик запущен');
 
+// ========== ПРЕЛОАДЕР ==========
+
+(function createPreloader() {
+    if (document.getElementById('kb-preloader')) return;
+    GM_addStyle(`
+        #kb-preloader {
+            position: fixed; bottom: 16px; right: 16px; z-index: 100001;
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; border-radius: 10px;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 12px; font-weight: 500; color: #555;
+            animation: kb-preloader-in 0.3s ease;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        #kb-preloader.hiding {
+            opacity: 0; transform: translateY(8px);
+        }
+        #kb-preloader-icon {
+            width: 16px; height: 16px;
+            border: 2px solid #e0e3e7; border-top-color: #ff9800;
+            border-radius: 50%;
+            animation: kb-preloader-spin 0.8s linear infinite;
+        }
+        #kb-preloader-text { white-space: nowrap; }
+        @keyframes kb-preloader-spin { to { transform: rotate(360deg); } }
+        @keyframes kb-preloader-in { from { opacity:0; transform: translateY(8px); } }
+    `);
+    const el = document.createElement('div');
+    el.id = 'kb-preloader';
+    el.innerHTML = '<div id="kb-preloader-icon"></div><span id="kb-preloader-text">Котёл варится...</span>';
+    document.body.appendChild(el);
+})();
+
+function hidePreloader(text, isError) {
+    var el = document.getElementById('kb-preloader');
+    if (!el) return;
+    var txt = document.getElementById('kb-preloader-text');
+    var ico = document.getElementById('kb-preloader-icon');
+    if (txt) txt.textContent = text || 'Готово';
+    if (ico) {
+        ico.style.borderTopColor = isError ? '#dc3545' : '#4CAF50';
+        ico.style.animation = 'none'; // stop spinning
+    }
+    setTimeout(function() { el.remove(); }, 1500);
+}
+function updatePreloaderText(text) {
+    var el = document.getElementById('kb-preloader-text');
+    if (el) el.textContent = text;
+}
+
 // ========== Захват GM_* API ==========
     // GM_* доступны из внешнего scope (new Function в Tampermonkey shell).
     // Сохраняем в _gm для передачи child-скриптам через new Function().
@@ -63,11 +115,13 @@ console.log('[Котёл] Загрузчик запущен');
 
     // ========== ЛОГИРОВАНИЕ ==========
 
+    // Ключевые шаги — всегда, детали — только при debug
     const log = {
-        info:  (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#ff9800;font-weight:600', ...a); },
+        info:  (...a) => console.log('%c[Котёл]', 'color:#ff9800;font-weight:600', ...a),
         warn:  (...a) => { if (KETTLE_BOOT.debug) console.warn('%c[Котёл]', 'color:#ff5722;font-weight:600', ...a); },
-        error: (...a) => { if (KETTLE_BOOT.debug) console.error('%c[Котёл]', 'color:#dc3545;font-weight:600', ...a); },
-        ok:    (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#4CAF50;font-weight:600', ...a); },
+        error: (...a) => console.error('%c[Котёл]', 'color:#dc3545;font-weight:600', ...a),
+        ok:    (...a) => console.log('%c[Котёл]', 'color:#4CAF50;font-weight:600', ...a),
+        debug: (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#999;font-weight:400', ...a); },
     };
 
     // ========== ТОКЕН ==========
@@ -436,21 +490,23 @@ console.log('[Котёл] Загрузчик запущен');
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
 
     async function loadAll() {
-        console.log('[Котёл] loadAll() вызван');
-        const token = await getToken();
-        console.log('[Котёл] токен:', token ? 'получен' : 'отсутствует');
-        if (!token) return;
+        log.info('loadAll() вызван');
+        var token = await getToken();
+        log.info('токен:', token ? 'получен' : 'отсутствует');
+        if (!token) { hidePreloader('Нет токена', true); return; }
 
-        const t0 = performance.now();
-        log.info(`Загрузка ${KETTLE_BOOT.scripts.length} скриптов...`);
+        var t0 = performance.now();
+        log.info('Загрузка ' + KETTLE_BOOT.scripts.length + ' скриптов...');
+        updatePreloaderText('Загрузка скриптов...');
 
         // Фаза 1: мгновенный запуск из кэша
-        const needsFetch = [];
+        var needsFetch = [];
 
-        KETTLE_BOOT.scripts.forEach(name => {
-            const cached = getCache(name);
+        KETTLE_BOOT.scripts.forEach(function(name) {
+            var cached = getCache(name);
             if (cached) {
-                log.ok(`${name} — из кэша (${cached.age} мин)`);
+                log.debug(name + ' — из кэша (' + cached.age + ' мин)');
+                updatePreloaderText(name + ' (кэш)');
                 executeScript(name, cached.content);
             } else {
                 needsFetch.push(name);
@@ -458,61 +514,71 @@ console.log('[Котёл] Загрузчик запущен');
         });
 
         if (needsFetch.length === 0) {
-            log.ok(`Все из кэша за ${Math.round(performance.now() - t0)} мс`);
+            var elapsed = Math.round(performance.now() - t0);
+            log.ok('Все из кэша за ' + elapsed + ' мс');
+            hidePreloader('Готово за ' + elapsed + ' мс');
             backgroundUpdate(token);
             return;
         }
 
         // Фаза 2: загрузка отсутствующих в кэше
-        log.info(`Загрузка с GitHub: ${needsFetch.join(', ')}`);
+        log.info('Загрузка с GitHub: ' + needsFetch.join(', '));
 
         // Загружаем последовательно (порядок важен — _shared.js первым)
-        for (const name of needsFetch) {
-            const url = KETTLE_BOOT.repoBase + name;
-            const ts = performance.now();
+        for (var i = 0; i < needsFetch.length; i++) {
+            var name = needsFetch[i];
+            var url = KETTLE_BOOT.repoBase + name;
+            var ts = performance.now();
+            updatePreloaderText('Загрузка ' + name + '...');
             try {
-                const raw = await fetchScript(url, token, KETTLE_BOOT.retries);
-                const data = JSON.parse(raw);
-                const content = decodeContent(raw);
+                var raw = await fetchScript(url, token, KETTLE_BOOT.retries);
+                var data = JSON.parse(raw);
+                var content = decodeContent(raw);
 
                 setCache(name, content, data.sha);
                 executeScript(name, content);
 
-                log.ok(`${name} — загружен за ${Math.round(performance.now() - ts)} мс`);
+                log.ok(name + ' — загружен за ' + Math.round(performance.now() - ts) + ' мс');
             } catch (e) {
-                log.error(`${name} — ОШИБКА:`, e.message);
+                log.error(name + ' — ОШИБКА:', e.message);
             }
         }
 
-        log.ok(`Загрузка завершена за ${Math.round(performance.now() - t0)} мс`);
+        var total = Math.round(performance.now() - t0);
+        log.ok('Загрузка завершена за ' + total + ' мс');
+        hidePreloader('Готово за ' + total + ' мс');
     }
 
     // Фоновая проверка обновлений для закэшированных скриптов
     async function backgroundUpdate(token) {
-        log.info('Фоновая проверка обновлений...');
+        log.debug('Фоновая проверка обновлений...');
 
-        for (const name of KETTLE_BOOT.scripts) {
-            const url = KETTLE_BOOT.repoBase + name;
+        for (var i = 0; i < KETTLE_BOOT.scripts.length; i++) {
+            var name = KETTLE_BOOT.scripts[i];
+            var url = KETTLE_BOOT.repoBase + name;
             try {
-                const raw = await fetchScript(url, token, 1);
-                const data = JSON.parse(raw);
-                const meta = GM_getValue(cacheMeta(name));
+                var raw = await fetchScript(url, token, 1);
+                var data = JSON.parse(raw);
+                var meta = GM_getValue(cacheMeta(name));
 
                 if (meta && meta.sha === data.sha) continue;
 
-                const content = decodeContent(raw);
+                var content = decodeContent(raw);
                 setCache(name, content, data.sha);
-                log.info(`${name} — обновлён в кэше (новый SHA)`);
-            } catch {
+                log.debug(name + ' — обновлён в кэше (новый SHA)');
+            } catch (e) {
                 // Тихо — не критично
             }
         }
 
         GM_setValue('kettle_last_bg_check', Date.now());
-        log.ok('Фоновая проверка завершена');
+        log.debug('Фоновая проверка завершена');
     }
 
     // ========== ЗАПУСК ==========
 
-    console.log('[Котёл] Вызов loadAll()');
-    loadAll().catch(e => console.error('[Котёл] Фатальная ошибка loadAll():', e));
+    log.info('Вызов loadAll()');
+    loadAll().catch(function(e) {
+        log.error('Фатальная ошибка loadAll():', e);
+        hidePreloader('Ошибка загрузки', true);
+    });
