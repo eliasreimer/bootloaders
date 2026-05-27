@@ -18,7 +18,7 @@
  */
 const KETTLE_BOOT = {
     // Дебаг: логи в консоль
-    debug: true,
+    debug: false,
 
     // Кэширование скриптов (GM_setValue)
     cache: {
@@ -38,6 +38,7 @@ const KETTLE_BOOT = {
     scripts: [
         '_shared.js',
         'keetleCRM.js',
+        'kettleAdmin.js',
     ],
 
     // Базовый URL репозитория
