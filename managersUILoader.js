@@ -50,6 +50,8 @@ const KETTLE_BOOT = {
     ],
 };
 
+console.log('[Kettle Boot] Загрузчик запущен');
+
 // ========== Захват GM_* API ==========
     // GM_* доступны из внешнего scope (new Function в Tampermonkey shell).
     // Сохраняем в _gm для передачи child-скриптам через new Function().
@@ -433,7 +435,9 @@ const KETTLE_BOOT = {
     // ========== ОСНОВНОЙ ПРОЦЕСС ==========
 
     async function loadAll() {
+        console.log('[Kettle Boot] loadAll() вызван');
         const token = await getToken();
+        console.log('[Kettle Boot] токен:', token ? 'получен' : 'отсутствует');
         if (!token) return;
 
         const t0 = performance.now();
@@ -509,4 +513,5 @@ const KETTLE_BOOT = {
 
     // ========== ЗАПУСК ==========
 
-    loadAll();
+    console.log('[Kettle Boot] Вызов loadAll()');
+    loadAll().catch(e => console.error('[Kettle Boot] Фатальная ошибка loadAll():', e));
