@@ -550,8 +550,11 @@ function updatePreloaderText(text) {
     }
 
     // Фоновая проверка обновлений для закэшированных скриптов
+    // При обнаружении нового SHA — перезапускает скрипты и предлагает перезагрузку
     async function backgroundUpdate(token) {
         log.debug('Фоновая проверка обновлений...');
+
+        var updated = [];
 
         for (var i = 0; i < KETTLE_BOOT.scripts.length; i++) {
             var name = KETTLE_BOOT.scripts[i];
@@ -565,6 +568,7 @@ function updatePreloaderText(text) {
 
                 var content = decodeContent(raw);
                 setCache(name, content, data.sha);
+                updated.push(name);
                 log.debug(name + ' — обновлён в кэше (новый SHA)');
             } catch (e) {
                 // Тихо — не критично
@@ -573,6 +577,31 @@ function updatePreloaderText(text) {
 
         GM_setValue('kettle_last_bg_check', Date.now());
         log.debug('Фоновая проверка завершена');
+
+        if (updated.length > 0) {
+            log.info('Найдены обновления:', updated.join(', '));
+            GM_setValue('kettle_pending_reload', true);
+
+            // Показываем тост с предложением перезагрузки
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:100001;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:10px;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;color:#222;animation:kb-preloader-in 0.3s ease;cursor:pointer;';
+            toast.innerHTML = '<span style="color:#43a047;font-weight:600">✓</span> Скрипты обновлены. <span style="color:#4a8fda;font-weight:600;text-decoration:underline">Обновить страницу</span>';
+            toast.title = 'Котёл — обновления ' + updated.join(', ');
+            toast.onclick = function() {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(function() { toast.remove(); location.reload(); }, 300);
+            };
+            document.body.appendChild(toast);
+            setTimeout(function() {
+                if (toast.parentNode) {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.5s ease';
+                    setTimeout(function() { toast.remove(); }, 500);
+                }
+            }, 15000);
+        }
     }
 
     // ========== ЗАПУСК ==========
