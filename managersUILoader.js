@@ -1,122 +1,338 @@
+/**
+ * managersUILoader.js — Бутлоадер для Котла Лидов
+ * Аналог systemImproverCRM.js, но с new Function() для передачи GM_* API.
+ *
+ * Запуск: Tampermonkey shell
+ * Репозиторий: eliasreimer/managersUI
+ *
+ * Отличия от systemImproverCRM:
+ *   - new Function() вместо script.textContent (скрипты используют GM_* напрямую)
+ *   - Список скриптов Котла
+ */
+
+/**
+ * ============================================
+ *  НАСТРОЙКИ БУТЛОАДЕРА
+ * ============================================
+ */
+const KETTLE_BOOT = {
+    // Дебаг: логи в консоль
+    debug: false,
+
+    // Кэширование скриптов (GM_setValue)
+    cache: {
+        enabled: true,
+        ttlMinutes: 30,
+    },
+
+    // Ретраи при ошибках сети
+    retries: 2,
+    retryDelayMs: 1500,
+
+    // Таймаут запроса (мс)
+    requestTimeoutMs: 15000,
+
+    // Скрипты (порядок = порядок загрузки)
+    // _shared.js ВСЕГДА первый — общий модуль
+    scripts: [
+        '_shared.js',
+        'keetleCRM.js',
+    ],
+
+    // Базовый URL репозитория
+    repoBase: 'https://api.github.com/repos/eliasreimer/managersUI/contents/',
+
+    // GM_* функции для передачи через new Function()
+    gmFunctions: [
+        'GM_xmlhttpRequest', 'GM_notification', 'GM_getValue', 'GM_setValue',
+        'GM_deleteValue', 'GM_addStyle', 'GM_registerMenuCommand',
+    ],
+};
+
 (function() {
     'use strict';
 
-    const DEBUG = false;
+    // ========== ЛОГИРОВАНИЕ ==========
 
-    const SCRIPT_URLS = [
-        "https://api.github.com/repos/eliasreimer/managersUI/contents/keetleCRM.js"
-    ];
+    const log = {
+        info:  (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Kettle Boot]', 'color:#ff9800;font-weight:600', ...a); },
+        warn:  (...a) => { if (KETTLE_BOOT.debug) console.warn('%c[Kettle Boot]', 'color:#ff5722;font-weight:600', ...a); },
+        error: (...a) => { if (KETTLE_BOOT.debug) console.error('%c[Kettle Boot]', 'color:#dc3545;font-weight:600', ...a); },
+        ok:    (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Kettle Boot]', 'color:#4CAF50;font-weight:600', ...a); },
+    };
 
-    const TOKEN_KEY = 'github_token_crm';
+    // ========== ТОКЕН ==========
 
-    function getGitHubToken() {
-        let token = GM_getValue(TOKEN_KEY);
-
+    function getToken() {
+        let token = GM_getValue('kettle_github_token');
         if (!token) {
-            token = prompt(
-                '❗️ Введите токен для доступа к улучшениям S2 CRM:',
-                'github_pat_...'
-            );
-
+            token = prompt('Введите GitHub-токен для managersUI:', 'github_pat_...');
             if (token) {
-                GM_setValue(TOKEN_KEY, token);
-                GM_notification({
-                    title: '✅ Токен сохранён!',
-                    timeout: 3000
-                });
+                GM_setValue('kettle_github_token', token);
+                GM_notification({ title: 'Котёл', text: 'Токен сохранён.', timeout: 3000 });
             }
         }
-
         return token;
     }
 
-    GM_registerMenuCommand("Сменить токен для доступа к улучшениям S2 CRM", function() {
-        const newToken = prompt(
-            '❗️ Введите новый токен:',
-            GM_getValue(TOKEN_KEY) || ''
-        );
-
-        if (newToken !== null) {
-            GM_setValue(TOKEN_KEY, newToken);
-            GM_notification({
-                title: '✅ Токен обновлён!',
-                timeout: 3000
-            });
+    GM_registerMenuCommand('🔑 Изменить GitHub-токен', () => {
+        const t = prompt('Новый токен:', GM_getValue('kettle_github_token') || '');
+        if (t !== null) {
+            GM_setValue('kettle_github_token', t);
+            GM_notification({ title: 'Котёл', text: 'Токен обновлён.', timeout: 3000 });
         }
     });
 
-    function executeScript(scriptContent) {
-        try {
-            // Выполняем код в текущем контексте (userscript), чтобы были доступны GM_* функции
-            eval(scriptContent);
-        } catch (error) {
-            if (DEBUG) console.error('[S2 CRM] Ошибка выполнения:', error);
-            GM_notification({
-                title: 'Ошибка выполнения!',
-                text: error.message,
-                timeout: 5000
-            });
-        }
+    // ========== КЭШ ==========
+
+    // Префикс kettle_ чтобы не конфликтовать с systemImproverCRM
+    function cacheKey(name)  { return `kettle_cache_${name}`; }
+    function cacheMeta(name) { return `kettle_meta_${name}`; }
+
+    function getCache(name) {
+        if (!KETTLE_BOOT.cache.enabled) return null;
+        const meta = GM_getValue(cacheMeta(name));
+        if (!meta) return null;
+
+        const age = (Date.now() - meta.ts) / 1000 / 60;
+        if (age > KETTLE_BOOT.cache.ttlMinutes) return null;
+
+        const content = GM_getValue(cacheKey(name));
+        if (!content) return null;
+
+        return { content, sha: meta.sha, age: Math.round(age) };
     }
 
-    function loadScripts() {
-        const token = getGitHubToken();
-        if (!token) return;
+    function setCache(name, content, sha) {
+        if (!KETTLE_BOOT.cache.enabled) return;
+        GM_setValue(cacheKey(name), content);
+        GM_setValue(cacheMeta(name), { ts: Date.now(), sha });
+    }
 
-        SCRIPT_URLS.forEach(url => {
-            GM_xmlhttpRequest({
-                method: "GET",
-                url: url,
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Accept": "application/vnd.github.v3+json",
-                    "User-Agent": "Tampermonkey"
-                },
-                onload: function(response) {
-                    if (response.status === 200) {
-                        try {
-                            const data = JSON.parse(response.responseText);
-                            const base64Content = data.content.replace(/\s/g, '');
-                            const binaryContent = atob(base64Content);
-                            const scriptContent = new TextDecoder("utf-8").decode(
-                                new Uint8Array([...binaryContent].map(c => c.charCodeAt(0)))
-                            );
-
-                            executeScript(scriptContent);
-                            if (DEBUG) console.log(`[S2 CRM] Загружен: ${url}`);
-                        } catch (parseError) {
-                            if (DEBUG) console.error('[S2 CRM] Ошибка обработки:', parseError);
-                            GM_notification({
-                                title: 'Ошибка обработки!',
-                                text: `URL: ${url}\n${parseError.message}`,
-                                timeout: 5000
-                            });
-                        }
-                    } else {
-                        if (DEBUG) console.error(`[S2 CRM] Ошибка загрузки ${url}:`, response.status);
-                        GM_notification({
-                            title: 'Ошибка загрузки!',
-                            text: `Статус ${response.status} при запросе ${url}. Проверьте токен.`,
-                            timeout: 5000
-                        });
-                    }
-                },
-                onerror: function(error) {
-                    if (DEBUG) console.error(`[S2 CRM] Сетевая ошибка ${url}:`, error);
-                    GM_notification({
-                        title: 'Ошибка сети!',
-                        text: `Не удалось загрузить ${url}`,
-                        timeout: 5000
-                    });
-                }
-            });
+    function clearAllCache() {
+        KETTLE_BOOT.scripts.forEach(name => {
+            GM_setValue(cacheKey(name), null);
+            GM_setValue(cacheMeta(name), null);
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', loadScripts);
-    } else {
-        loadScripts();
+    GM_registerMenuCommand('🔄 Обновить скрипты', () => {
+        clearAllCache();
+        GM_notification({ title: 'Котёл', text: 'Кэш очищен. Обновлю при перезагрузке.', timeout: 3000 });
+        location.reload();
+    });
+
+    // ========== СТАТУС ==========
+
+    function formatTs(ts) {
+        const d = new Date(ts);
+        const p = n => String(n).padStart(2, '0');
+        return `${p(d.getDate())}.${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     }
 
+    function showModal(title, bodyHtml) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.3);width:420px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;';
+
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e2e2;';
+        hdr.innerHTML = `<span style="font-size:15px;font-weight:600;color:#222">${title}</span>`;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:#888;padding:0 4px;line-height:1;';
+        closeBtn.onclick = () => overlay.remove();
+        hdr.appendChild(closeBtn);
+
+        const body = document.createElement('div');
+        body.style.cssText = 'padding:14px 18px;overflow-y:auto;font-size:13px;line-height:1.7;color:#222;white-space:pre;font-family:Consolas,Monaco,monospace;';
+        body.innerHTML = bodyHtml;
+
+        box.appendChild(hdr);
+        box.appendChild(body);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        closeBtn.focus();
+    }
+
+    GM_registerMenuCommand('📋 Статус скриптов', () => {
+        const now = Date.now();
+        const ttlMs = KETTLE_BOOT.cache.ttlMinutes * 60 * 1000;
+        const lines = KETTLE_BOOT.scripts.map(name => {
+            const meta = GM_getValue(cacheMeta(name));
+            if (!meta || !GM_getValue(cacheKey(name))) return `❌ ${name}`;
+            const ageMs = now - meta.ts;
+            const fresh = ageMs <= ttlMs;
+            const status = fresh ? '✅' : '⚠️';
+            const ts = formatTs(meta.ts);
+            const sha = (meta.sha || '').slice(0, 7);
+            return `${status} ${name}  ${sha}  ${ts}`;
+        });
+        const fresh = lines.filter(l => l.startsWith('✅')).length;
+        const lastBg = GM_getValue('kettle_last_bg_check');
+        const footer = lastBg ? `\n🔍 Обновление: ${formatTs(lastBg)}` : '';
+        showModal('Котёл — Статус', `📋 Актуально: <b>${fresh}/${KETTLE_BOOT.scripts.length}</b>\n\n${lines.join('\n')}${footer}`);
+    });
+
+    // ========== ЗАГРУЗКА ==========
+
+    function fetchScript(url, token, retriesLeft) {
+        return new Promise((resolve, reject) => {
+            const attempt = (n) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url,
+                    timeout: KETTLE_BOOT.requestTimeoutMs,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'User-Agent': 'Tampermonkey Kettle Bootloader',
+                    },
+                    onload(r) {
+                        if (r.status === 200) {
+                            resolve(r.responseText);
+                        } else if (n > 0) {
+                            log.warn(`Ретрай ${url} (${r.status})...`);
+                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                        } else {
+                            reject(new Error(`HTTP ${r.status}: ${url}`));
+                        }
+                    },
+                    onerror() {
+                        if (n > 0) {
+                            log.warn(`Ретрай ${url} (сеть)...`);
+                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                        } else {
+                            reject(new Error(`Network error: ${url}`));
+                        }
+                    },
+                    ontimeout() {
+                        if (n > 0) {
+                            log.warn(`Ретрай ${url} (таймаут)...`);
+                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                        } else {
+                            reject(new Error(`Timeout: ${url}`));
+                        }
+                    },
+                });
+            };
+            attempt(retriesLeft);
+        });
+    }
+
+    function decodeContent(responseText) {
+        const data = JSON.parse(responseText);
+        const base64 = data.content.replace(/\s/g, '');
+        const binary = atob(base64);
+        return new TextDecoder('utf-8').decode(
+            new Uint8Array([...binary].map(c => c.charCodeAt(0)))
+        );
+    }
+
+    /**
+     * Выполняет скрипт через new Function() с передачей GM_* API.
+     * Это необходимо потому, что скрипты Котла используют GM_* напрямую
+     * (GM_setValue, GM_xmlhttpRequest и т.д.), а обычный eval() не даёт
+     * изолированного scope. new Function() — чище и предсказуемее.
+     */
+    function executeScript(name, content) {
+        try {
+            const gmNames = KETTLE_BOOT.gmFunctions;
+            const gmRefs = gmNames.map(n => (typeof n === 'string' ? (self[n] || null) : null));
+
+            const fn = new Function(...gmNames, content);
+            fn(...gmRefs);
+
+            log.ok(`${name} — выполнен`);
+        } catch (e) {
+            log.error(`Ошибка выполнения ${name}:`, e);
+            GM_notification({ title: `Котёл: ${name}`, text: `Ошибка: ${e.message}`, timeout: 5000 });
+        }
+    }
+
+    // ========== ОСНОВНОЙ ПРОЦЕСС ==========
+
+    async function loadAll() {
+        const token = getToken();
+        if (!token) return;
+
+        const t0 = performance.now();
+        log.info(`Загрузка ${KETTLE_BOOT.scripts.length} скриптов...`);
+
+        // Фаза 1: мгновенный запуск из кэша
+        const needsFetch = [];
+
+        KETTLE_BOOT.scripts.forEach(name => {
+            const cached = getCache(name);
+            if (cached) {
+                log.ok(`${name} — из кэша (${cached.age} мин)`);
+                executeScript(name, cached.content);
+            } else {
+                needsFetch.push(name);
+            }
+        });
+
+        if (needsFetch.length === 0) {
+            log.ok(`Все из кэша за ${Math.round(performance.now() - t0)} мс`);
+            backgroundUpdate(token);
+            return;
+        }
+
+        // Фаза 2: загрузка отсутствующих в кэше
+        log.info(`Загрузка с GitHub: ${needsFetch.join(', ')}`);
+
+        // Загружаем последовательно (порядок важен — _shared.js первым)
+        for (const name of needsFetch) {
+            const url = KETTLE_BOOT.repoBase + name;
+            const ts = performance.now();
+            try {
+                const raw = await fetchScript(url, token, KETTLE_BOOT.retries);
+                const data = JSON.parse(raw);
+                const content = decodeContent(raw);
+
+                setCache(name, content, data.sha);
+                executeScript(name, content);
+
+                log.ok(`${name} — загружен за ${Math.round(performance.now() - ts)} мс`);
+            } catch (e) {
+                log.error(`${name} — ОШИБКА:`, e.message);
+                GM_notification({ title: `Котёл: ${name}`, text: e.message, timeout: 5000 });
+            }
+        }
+
+        log.ok(`Загрузка завершена за ${Math.round(performance.now() - t0)} мс`);
+    }
+
+    // Фоновая проверка обновлений для закэшированных скриптов
+    async function backgroundUpdate(token) {
+        log.info('Фоновая проверка обновлений...');
+
+        for (const name of KETTLE_BOOT.scripts) {
+            const url = KETTLE_BOOT.repoBase + name;
+            try {
+                const raw = await fetchScript(url, token, 1);
+                const data = JSON.parse(raw);
+                const meta = GM_getValue(cacheMeta(name));
+
+                if (meta && meta.sha === data.sha) continue;
+
+                const content = decodeContent(raw);
+                setCache(name, content, data.sha);
+                log.info(`${name} — обновлён в кэше (новый SHA)`);
+            } catch {
+                // Тихо — не критично
+            }
+        }
+
+        GM_setValue('kettle_last_bg_check', Date.now());
+        log.ok('Фоновая проверка завершена');
+    }
+
+    // ========== ЗАПУСК ==========
+
+    loadAll();
 })();
