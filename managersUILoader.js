@@ -18,7 +18,7 @@
  */
 const KETTLE_BOOT = {
     // Дебаг: логи в консоль
-    debug: true,
+    debug: false,
 
     // Кэширование скриптов (GM_setValue)
     cache: {
