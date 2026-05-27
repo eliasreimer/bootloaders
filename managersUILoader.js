@@ -165,7 +165,7 @@ const KETTLE_BOOT = {
         if (!token) {
             token = await showTokenModal(
                 'Токен',
-                'Введите токен для установки <a href="https://confluence.skillbox.pro/pages/viewpage.action?pageId=358386673" target="_blank" style="color:#4a8fda;text-decoration:underline">скриптов для ОП</a>.',
+                'Введите токен для установки <a href="https://confluence.skillbox.pro/pages/viewpage.action?pageId=358386673" target="_blank" style="color:#4a8fda;text-decoration:underline">скриптов для ОП</a>:',
                 'github_pat_...',
                 ''
             );
