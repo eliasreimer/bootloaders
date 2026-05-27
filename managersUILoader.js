@@ -73,7 +73,7 @@ const KETTLE_BOOT = {
      * Кастомный модал для ввода токена.
      * Возвращает Promise<string|null> — null если отменено.
      */
-    function showTokenModal(title, description, placeholder, currentValue) {
+    function showTokenModal(title, descriptionHTML, placeholder, currentValue) {
         return new Promise((resolve) => {
             // Убираем предыдущий модал если есть
             const old = document.getElementById('kettle-token-modal');
@@ -92,10 +92,10 @@ const KETTLE_BOOT = {
             hdr.style.cssText = 'padding:20px 24px 0;display:flex;align-items:center;gap:10px;';
             hdr.innerHTML = `<span style="font-size:20px">🔑</span><span style="font-size:16px;font-weight:600;color:#222">${title}</span>`;
 
-            // Описание
+            // Описание (поддерживает HTML — для гиперссылок)
             const desc = document.createElement('div');
             desc.style.cssText = 'padding:12px 24px 0;font-size:13px;color:#666;line-height:1.5;';
-            desc.textContent = description;
+            desc.innerHTML = descriptionHTML;
 
             // Инпут
             const inputWrap = document.createElement('div');
@@ -164,8 +164,8 @@ const KETTLE_BOOT = {
         let token = GM_getValue('kettle_github_token');
         if (!token) {
             token = await showTokenModal(
-                'GitHub-токен',
-                'Введите персональный токен для загрузки скриптов Котла из репозитория managersUI.',
+                'Токен',
+                'Введите токен для установки <a href="https://confluence.skillbox.pro/pages/viewpage.action?pageId=358386673" target="_blank" style="color:#4a8fda;text-decoration:underline">скриптов для ОП</a>.',
                 'github_pat_...',
                 ''
             );
@@ -177,10 +177,10 @@ const KETTLE_BOOT = {
         return token;
     }
 
-    GM_registerMenuCommand('🔑 Изменить GitHub-токен', async () => {
+    GM_registerMenuCommand('🔑 Изменить токен', async () => {
         const current = GM_getValue('kettle_github_token') || '';
         const t = await showTokenModal(
-            'Изменить GitHub-токен',
+            'Токен',
             'Текущий токен будет заменён на новый.',
             'github_pat_...',
             current
@@ -357,7 +357,6 @@ const KETTLE_BOOT = {
             log.ok(`${name} — выполнен`);
         } catch (e) {
             log.error(`Ошибка выполнения ${name}:`, e);
-            GM_notification({ title: `Котёл: ${name}`, text: `Ошибка: ${e.message}`, timeout: 5000 });
         }
     }
 
@@ -407,7 +406,6 @@ const KETTLE_BOOT = {
                 log.ok(`${name} — загружен за ${Math.round(performance.now() - ts)} мс`);
             } catch (e) {
                 log.error(`${name} — ОШИБКА:`, e.message);
-                GM_notification({ title: `Котёл: ${name}`, text: e.message, timeout: 5000 });
             }
         }
 
