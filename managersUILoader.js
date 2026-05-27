@@ -49,8 +49,16 @@ const KETTLE_BOOT = {
     ],
 };
 
-(function() {
+(function(GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue, GM_deleteValue, GM_addStyle, GM_registerMenuCommand) {
     'use strict';
+
+    // ========== Захват GM_* API ==========
+    // Бутлоадер получает GM_* как параметры от Tampermonkey shell.
+    // Сохраняем в объект для передачи child-скриптам через new Function().
+    const _gm = {
+        GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue,
+        GM_deleteValue, GM_addStyle, GM_registerMenuCommand,
+    };
 
     // ========== ЛОГИРОВАНИЕ ==========
 
@@ -235,14 +243,13 @@ const KETTLE_BOOT = {
 
     /**
      * Выполняет скрипт через new Function() с передачей GM_* API.
-     * Это необходимо потому, что скрипты Котла используют GM_* напрямую
-     * (GM_setValue, GM_xmlhttpRequest и т.д.), а обычный eval() не даёт
-     * изолированного scope. new Function() — чище и предсказуемее.
+     * Скрипты Котла используют GM_* напрямую (GM_setValue, GM_addStyle и т.д.),
+     * поэтому передаём захваченные ссылки из _gm.
      */
     function executeScript(name, content) {
         try {
             const gmNames = KETTLE_BOOT.gmFunctions;
-            const gmRefs = gmNames.map(n => (typeof n === 'string' ? (self[n] || null) : null));
+            const gmRefs = gmNames.map(n => _gm[n] || null);
 
             const fn = new Function(...gmNames, content);
             fn(...gmRefs);
