@@ -49,12 +49,12 @@ const KETTLE_BOOT = {
     ],
 };
 
-(function(GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue, GM_deleteValue, GM_addStyle, GM_registerMenuCommand) {
+(function() {
     'use strict';
 
     // ========== Захват GM_* API ==========
-    // Бутлоадер получает GM_* как параметры от Tampermonkey shell.
-    // Сохраняем в объект для передачи child-скриптам через new Function().
+    // GM_* доступны из внешнего scope (new Function в Tampermonkey shell).
+    // Сохраняем в _gm для передачи child-скриптам через new Function().
     const _gm = {
         GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue,
         GM_deleteValue, GM_addStyle, GM_registerMenuCommand,
