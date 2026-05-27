@@ -71,10 +71,106 @@ const KETTLE_BOOT = {
 
     // ========== ТОКЕН ==========
 
-    function getToken() {
+    /**
+     * Кастомный модал для ввода токена.
+     * Возвращает Promise<string|null> — null если отменено.
+     */
+    function showTokenModal(title, description, placeholder, currentValue) {
+        return new Promise((resolve) => {
+            // Убираем предыдущий модал если есть
+            const old = document.getElementById('kettle-token-modal');
+            if (old) old.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'kettle-token-modal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;animation:kbm-fadeIn .2s ease;';
+            overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
+
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.35);width:440px;overflow:hidden;animation:kbm-scaleIn .25s ease;';
+
+            // Заголовок
+            const hdr = document.createElement('div');
+            hdr.style.cssText = 'padding:20px 24px 0;display:flex;align-items:center;gap:10px;';
+            hdr.innerHTML = `<span style="font-size:20px">🔑</span><span style="font-size:16px;font-weight:600;color:#222">${title}</span>`;
+
+            // Описание
+            const desc = document.createElement('div');
+            desc.style.cssText = 'padding:12px 24px 0;font-size:13px;color:#666;line-height:1.5;';
+            desc.textContent = description;
+
+            // Инпут
+            const inputWrap = document.createElement('div');
+            inputWrap.style.cssText = 'padding:16px 24px 0;';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentValue || '';
+            input.placeholder = placeholder;
+            input.style.cssText = 'width:100%;padding:10px 14px;border:2px solid #dee2e6;border-radius:8px;font-size:13px;font-family:Consolas,Monaco,monospace;outline:none;transition:border-color .2s;';
+            input.addEventListener('focus', () => { input.style.borderColor = '#4a8fda'; });
+            input.addEventListener('blur', () => { input.style.borderColor = '#dee2e6'; });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                if (e.key === 'Escape') { overlay.remove(); resolve(null); }
+            });
+            inputWrap.appendChild(input);
+
+            // Кнопки
+            const btns = document.createElement('div');
+            btns.style.cssText = 'padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Отмена';
+            cancelBtn.style.cssText = 'padding:8px 18px;border:1px solid #dee2e6;border-radius:8px;background:#fff;color:#555;font-size:13px;cursor:pointer;transition:background .15s;';
+            cancelBtn.addEventListener('mouseenter', () => { cancelBtn.style.background = '#f0f0f0'; });
+            cancelBtn.addEventListener('mouseleave', () => { cancelBtn.style.background = '#fff'; });
+            cancelBtn.onclick = () => { overlay.remove(); resolve(null); };
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Сохранить';
+            saveBtn.style.cssText = 'padding:8px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,#4a8fda,#3a7fc8);color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .15s;';
+            saveBtn.addEventListener('mouseenter', () => { saveBtn.style.transform = 'translateY(-1px)'; saveBtn.style.boxShadow = '0 4px 12px rgba(74,143,218,0.35)'; });
+            saveBtn.addEventListener('mouseleave', () => { saveBtn.style.transform = 'none'; saveBtn.style.boxShadow = 'none'; });
+
+            function submit() {
+                const val = input.value.trim();
+                overlay.remove();
+                resolve(val || null);
+            }
+            saveBtn.onclick = submit;
+
+            btns.appendChild(cancelBtn);
+            btns.appendChild(saveBtn);
+
+            box.appendChild(hdr);
+            box.appendChild(desc);
+            box.appendChild(inputWrap);
+            box.appendChild(btns);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+
+            // Стили анимации (один раз)
+            if (!document.getElementById('kettle-modal-anim')) {
+                const s = document.createElement('style');
+                s.id = 'kettle-modal-anim';
+                s.textContent = `@keyframes kbm-fadeIn{from{opacity:0}to{opacity:1}}@keyframes kbm-scaleIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}`;
+                document.head.appendChild(s);
+            }
+
+            input.focus();
+            input.select();
+        });
+    }
+
+    async function getToken() {
         let token = GM_getValue('kettle_github_token');
         if (!token) {
-            token = prompt('Введите GitHub-токен для managersUI:', 'github_pat_...');
+            token = await showTokenModal(
+                'GitHub-токен',
+                'Введите персональный токен для загрузки скриптов Котла из репозитория managersUI.',
+                'github_pat_...',
+                ''
+            );
             if (token) {
                 GM_setValue('kettle_github_token', token);
                 GM_notification({ title: 'Котёл', text: 'Токен сохранён.', timeout: 3000 });
@@ -83,8 +179,14 @@ const KETTLE_BOOT = {
         return token;
     }
 
-    GM_registerMenuCommand('🔑 Изменить GitHub-токен', () => {
-        const t = prompt('Новый токен:', GM_getValue('kettle_github_token') || '');
+    GM_registerMenuCommand('🔑 Изменить GitHub-токен', async () => {
+        const current = GM_getValue('kettle_github_token') || '';
+        const t = await showTokenModal(
+            'Изменить GitHub-токен',
+            'Текущий токен будет заменён на новый.',
+            'github_pat_...',
+            current
+        );
         if (t !== null) {
             GM_setValue('kettle_github_token', t);
             GM_notification({ title: 'Котёл', text: 'Токен обновлён.', timeout: 3000 });
