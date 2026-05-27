@@ -81,25 +81,29 @@ const KETTLE_BOOT = {
 
             const overlay = document.createElement('div');
             overlay.id = 'kettle-token-modal';
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;animation:kbm-fadeIn .2s ease;';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;animation:kbm-fadeIn .2s ease;transition:opacity .3s ease;';
             overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
 
             const box = document.createElement('div');
-            box.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.35);width:440px;overflow:hidden;animation:kbm-scaleIn .25s ease;';
+            box.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.35);width:440px;overflow:hidden;animation:kbm-scaleIn .25s ease;transition:opacity .3s ease,transform .3s ease;';
 
             // Заголовок
             const hdr = document.createElement('div');
-            hdr.style.cssText = 'padding:20px 24px 0;display:flex;align-items:center;gap:10px;';
+            hdr.style.cssText = 'padding:20px 24px 0;display:flex;align-items:center;gap:10px;transition:opacity .3s ease;';
             hdr.innerHTML = `<span style="font-size:20px">🔑</span><span style="font-size:16px;font-weight:600;color:#222">${title}</span>`;
 
             // Описание (поддерживает HTML — для гиперссылок)
             const desc = document.createElement('div');
-            desc.style.cssText = 'padding:12px 24px 0;font-size:13px;color:#666;line-height:1.5;';
+            desc.style.cssText = 'padding:12px 24px 0;font-size:13px;color:#666;line-height:1.5;transition:opacity .3s ease;';
             desc.innerHTML = descriptionHTML;
+
+            // Ошибка (скрыта по умолчанию)
+            const errEl = document.createElement('div');
+            errEl.style.cssText = 'padding:8px 24px 0;font-size:12px;color:#dc3545;display:none;transition:opacity .3s ease;';
 
             // Инпут
             const inputWrap = document.createElement('div');
-            inputWrap.style.cssText = 'padding:16px 24px 0;';
+            inputWrap.style.cssText = 'padding:16px 24px 0;transition:opacity .3s ease;';
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue || '';
@@ -115,7 +119,7 @@ const KETTLE_BOOT = {
 
             // Кнопки
             const btns = document.createElement('div');
-            btns.style.cssText = 'padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;';
+            btns.style.cssText = 'padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;transition:opacity .3s ease;';
 
             const cancelBtn = document.createElement('button');
             cancelBtn.textContent = 'Отмена';
@@ -130,10 +134,75 @@ const KETTLE_BOOT = {
             saveBtn.addEventListener('mouseenter', () => { saveBtn.style.transform = 'translateY(-1px)'; saveBtn.style.boxShadow = '0 4px 12px rgba(74,143,218,0.35)'; });
             saveBtn.addEventListener('mouseleave', () => { saveBtn.style.transform = 'none'; saveBtn.style.boxShadow = 'none'; });
 
+            // Результат (скрыт по умолчанию)
+            const resultEl = document.createElement('div');
+            resultEl.style.cssText = 'padding:32px 24px;text-align:center;display:none;';
+            resultEl.innerHTML = '<span style="font-size:24px">✅</span><div style="margin-top:8px;font-size:15px;font-weight:600;color:#222;">Токен сохранён</div>';
+
+            const elementsToHide = [hdr, desc, errEl, inputWrap, btns];
+
+            function showError(text) {
+                errEl.textContent = text;
+                errEl.style.display = 'block';
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Сохранить';
+                saveBtn.style.opacity = '1';
+            }
+
             function submit() {
                 const val = input.value.trim();
-                overlay.remove();
-                resolve(val || null);
+                if (!val) { showError('Введите токен'); return; }
+
+                // Блокируем кнопку, показываем лоадер
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Проверяю...';
+                saveBtn.style.opacity = '0.7';
+                errEl.style.display = 'none';
+
+                // Тестовый запрос к GitHub API
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: KETTLE_BOOT.repoBase + '_shared.js',
+                    timeout: 10000,
+                    headers: {
+                        'Authorization': `Bearer ${val}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'User-Agent': 'Tampermonkey Kettle Bootloader',
+                    },
+                    onload(r) {
+                        if (r.status === 200) {
+                            // Токен валидный — плавная анимация
+                            elementsToHide.forEach(el => {
+                                el.style.opacity = '0';
+                                el.style.maxHeight = '0';
+                                el.style.padding = '0 24px';
+                                el.style.overflow = 'hidden';
+                                el.style.margin = '0';
+                            });
+                            setTimeout(() => {
+                                elementsToHide.forEach(el => el.style.display = 'none');
+                                resultEl.style.display = 'block';
+                                resultEl.style.opacity = '0';
+                                resultEl.style.transition = 'opacity .3s ease';
+                                requestAnimationFrame(() => { resultEl.style.opacity = '1'; });
+                            }, 300);
+                            setTimeout(() => {
+                                overlay.style.opacity = '0';
+                                box.style.opacity = '0';
+                                box.style.transform = 'scale(0.95)';
+                                setTimeout(() => {
+                                    overlay.remove();
+                                    resolve(val);
+                                }, 300);
+                            }, 1400);
+                        } else {
+                            showError(`Токен не принят (${r.status}). Проверьте и попробуйте снова.`);
+                        }
+                    },
+                    onerror() {
+                        showError('Ошибка сети. Проверьте подключение и попробуйте снова.');
+                    },
+                });
             }
             saveBtn.onclick = submit;
 
@@ -142,8 +211,10 @@ const KETTLE_BOOT = {
 
             box.appendChild(hdr);
             box.appendChild(desc);
+            box.appendChild(errEl);
             box.appendChild(inputWrap);
             box.appendChild(btns);
+            box.appendChild(resultEl);
             overlay.appendChild(box);
             document.body.appendChild(overlay);
 
@@ -171,7 +242,6 @@ const KETTLE_BOOT = {
             );
             if (token) {
                 GM_setValue('kettle_github_token', token);
-                GM_notification({ title: 'Котёл', text: 'Токен сохранён.', timeout: 3000 });
             }
         }
         return token;
@@ -187,7 +257,7 @@ const KETTLE_BOOT = {
         );
         if (t !== null) {
             GM_setValue('kettle_github_token', t);
-            GM_notification({ title: 'Котёл', text: 'Токен обновлён.', timeout: 3000 });
+            location.reload();
         }
     });
 
