@@ -33,6 +33,9 @@ const KETTLE_BOOT = {
     // Таймаут запроса (мс)
     requestTimeoutMs: 15000,
 
+    // Интервал проверки обновлений (мс)
+    pollIntervalMs: 30000,
+
     // Скрипты (порядок = порядок загрузки)
     // _shared.js ВСЕГДА первый — общий модуль
     scripts: [
@@ -538,10 +541,88 @@ function updatePreloaderText(text) {
         }
     }
 
+    // Периодический полл обновлений (30 сек)
+    // Один запрос на HEAD коммита вместо N запросов на каждый скрипт
+    function watchForUpdates(token) {
+        var knownSha = GM_getValue('kettle_repo_sha') || null;
+        var pollUrl = 'https://api.github.com/repos/eliasreimer/managersUI/commits?path=_shared.js&per_page=1';
+        var toast = null;
+        var polling = true;
+
+        var timer = setInterval(function() {
+            if (!polling) return;
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: pollUrl,
+                timeout: 10000,
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'Tampermonkey Kettle Bootloader',
+                },
+                onload: function(r) {
+                    if (r.status !== 200 || !r.responseText) return;
+                    try {
+                        var commits = JSON.parse(r.responseText);
+                        if (!commits.length) return;
+                        var latestSha = commits[0].sha;
+
+                        if (!knownSha) {
+                            knownSha = latestSha;
+                            GM_setValue('kettle_repo_sha', latestSha);
+                            return;
+                        }
+
+                        if (latestSha !== knownSha) {
+                            // Обновление найдено — останавливаем полл, показываем тост
+                            polling = false;
+                            clearInterval(timer);
+                            knownSha = latestSha;
+                            GM_setValue('kettle_repo_sha', latestSha);
+                            showUpdateToast();
+                        }
+                    } catch (e) { /* тихо */ }
+                },
+                onerror: function() { /* тихо */ },
+                ontimeout: function() { /* тихо */ },
+            });
+        }, KETTLE_BOOT.pollIntervalMs);
+
+        function showUpdateToast() {
+            if (toast && toast.parentNode) return;
+            toast = document.createElement('div');
+            toast.id = 'kb-update-toast';
+            toast.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:100001;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:10px;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;color:#222;animation:kb-preloader-in 0.3s ease;';
+            toast.innerHTML = '<span style="color:#43a047;font-weight:600">&#x2713;</span> Скрипты обновлены. <span style="color:#4a8fda;font-weight:600;text-decoration:underline;cursor:pointer">Обновить страницу</span>';
+
+            var reloadLink = toast.querySelector('span[style*="cursor:pointer"]');
+            if (reloadLink) {
+                reloadLink.onclick = function(e) {
+                    e.stopPropagation();
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(8px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(function() { toast.remove(); location.reload(); }, 300);
+                };
+            }
+
+            document.body.appendChild(toast);
+            setTimeout(function() {
+                if (toast.parentNode) {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.5s ease';
+                    setTimeout(function() { toast.remove(); toast = null; }, 500);
+                }
+            }, 30000);
+        }
+    }
+
     // ========== ЗАПУСК ==========
 
     log.info('Вызов loadAll()');
-    loadAll().catch(function(e) {
+    loadAll().then(function() {
+        watchForUpdates(GM_getValue('kettle_github_token'));
+    }).catch(function(e) {
         log.error('Фатальная ошибка loadAll():', e);
         hidePreloader('Ошибка загрузки', true);
     });
