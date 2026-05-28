@@ -65,20 +65,21 @@ console.log('[Котёл] Загрузчик запущен');
             font-size: 11px;
             color: #999;
             white-space: nowrap;
-            min-width: 180px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
+            position: relative;
             transition: opacity 0.3s ease;
         }
-        .kb-footer-indicator__version {
+        .kb-footer-indicator__version,
+        .kb-footer-indicator__log {
+            display: inline-block;
+            font-size: 11px;
             color: #999;
+            transition: opacity 0.3s ease;
         }
         .kb-footer-indicator__log {
-            color: #bbb;
             position: absolute;
+            left: 0;
+            top: 0;
             opacity: 0;
-            transition: opacity 0.3s ease;
         }
         .kb-footer-indicator__log.visible {
             opacity: 1;
@@ -87,13 +88,13 @@ console.log('[Котёл] Загрузчик запущен');
             opacity: 0;
         }
     `);
-    // Инициализация футерного индикатора (безопасно — футер может быть ещё не в DOM)
+    // Инициализация футерного индикатора
     function initFooterIndicator() {
         if (document.getElementById('kb-footer-indicator')) return;
         var pfRight = document.querySelector('.pf-right');
         if (!pfRight) return;
 
-        // Скрываем блок с аккаунтом + соседний разделитель
+        // Скрываем блок с аккаунтом + соседний разделитель (point-status)
         var userAccount = pfRight.querySelector('.page-footer__user-account');
         if (userAccount) {
             var prevPoint = userAccount.previousElementSibling;
@@ -101,21 +102,29 @@ console.log('[Котёл] Загрузчик запущен');
             userAccount.style.display = 'none';
         }
 
-        // Вставляем наш индикатор после version-text + первого point-status
+        // Вставляем на место скрытого юзер-аккаунта (между version и hotkeys)
+        var hotkeys = pfRight.querySelector('.page-footer__hotkeys');
         var versionLink = pfRight.querySelector('a.version-text');
-        if (!versionLink) return;
-        var firstPoint = versionLink.nextElementSibling;
+        if (!versionLink && !hotkeys) return;
 
         var wrapper = document.createElement('span');
         wrapper.id = 'kb-footer-indicator';
         wrapper.className = 'kb-footer-indicator';
         wrapper.style.position = 'relative';
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
         wrapper.innerHTML =
-            '<span class="kb-footer-indicator__version">Котёл — загрузка...</span>' +
+            '<span class="kb-footer-indicator__version">Версия скриптов: загрузка...</span>' +
             '<span class="kb-footer-indicator__log"></span>';
 
-        if (firstPoint && firstPoint.classList.contains('point-status')) {
-            firstPoint.after(wrapper);
+        // Вставляем перед hotkeys (они остаются как были)
+        if (hotkeys) {
+            // Также скрываем point-status перед hotkeys, т.к. мы его заменяем
+            var hotkeysPrev = hotkeys.previousElementSibling;
+            if (hotkeysPrev && hotkeysPrev.classList.contains('point-status') && hotkeysPrev.style.display !== 'none') {
+                // Оставляем этот разделитель — он между нами и hotkeys
+            }
+            hotkeys.parentNode.insertBefore(wrapper, hotkeys);
         } else {
             versionLink.after(wrapper);
         }
@@ -516,7 +525,7 @@ function updatePreloaderText(text) {
                 executeScript(name, cached.content);
                 // После загрузки _shared.js — обновляем версию в футере
                 if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updateFooterIndicator('Котёл ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                    updateFooterIndicator('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION, 'set');
                 }
             } else {
                 needsFetch.push(name);
@@ -550,7 +559,7 @@ function updatePreloaderText(text) {
 
                 // После загрузки _shared.js — обновляем версию в футере
                 if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updateFooterIndicator('Котёл ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                    updateFooterIndicator('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION, 'set');
                 }
 
                 log.ok(name + ' — загружен за ' + Math.round(performance.now() - ts) + ' мс');
