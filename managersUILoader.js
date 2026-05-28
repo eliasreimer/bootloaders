@@ -548,6 +548,7 @@ function updatePreloaderText(text) {
         var toast = null;
         var polling = true;
         var etag = null;
+        var firstPoll = true; // флаг первого запроса после смены URL
 
         function poll() {
             if (!polling) return;
@@ -566,11 +567,11 @@ function updatePreloaderText(text) {
                 onload: function(r) {
                     // Сохраняем ETag для следующего запроса
                     if (r.responseHeaders) {
-                        var match = r.responseHeaders.match(/ETag:\s*(\"[^"]+\")/);
+                        var match = r.responseHeaders.match(/ETag:\s*(\"[^\"]+\")/);
                         if (match) etag = match[1];
                     }
 
-                    if (r.status === 304) return; // без изменений — не считается
+                    if (r.status === 304) { firstPoll = false; return; }
 
                     if (r.status === 200 && r.responseText) {
                         try {
@@ -579,6 +580,12 @@ function updatePreloaderText(text) {
                             var latestSha = commits[0].sha;
                             var savedSha = GM_getValue('kettle_repo_sha');
                             GM_setValue('kettle_repo_sha', latestSha);
+
+                            if (firstPoll) {
+                                // Первый полл — просто синхронизируем SHA, не показываем тост
+                                firstPoll = false;
+                                return;
+                            }
 
                             if (savedSha && latestSha !== savedSha) {
                                 polling = false;
