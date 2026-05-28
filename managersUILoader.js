@@ -544,7 +544,7 @@ function updatePreloaderText(text) {
     // Периодический полл обновлений (30 сек ± jitter)
     // GitHub API с ETag: 304 не считается против rate limit
     function watchForUpdates(token) {
-        var pollUrl = 'https://api.github.com/repos/eliasreimer/managersUI/commits?path=_shared.js&per_page=1';
+        var pollUrl = 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1';
         var toast = null;
         var polling = true;
         var etag = null;
