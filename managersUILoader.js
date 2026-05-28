@@ -79,7 +79,7 @@ function initFooter() {
         var span = document.createElement('span');
         span.id = 'kb-footer-indicator';
         span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap';
-        span.textContent = 'Версия скриптов: загрузка...';
+        span.textContent = 'Загрузка скриптов...';
         userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
     }
 }
@@ -447,10 +447,6 @@ function updatePreloaderText(text) {
             if (cached) {
                 log.debug(name + ' — из кэше (' + cached.age + ' мин)');
                 executeScript(name, cached.content);
-                // После загрузки _shared.js — обновляем версию в футере
-                if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updatePreloaderText('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION);
-                }
             } else {
                 needsFetch.push(name);
             }
@@ -480,11 +476,6 @@ function updatePreloaderText(text) {
 
                 setCache(name, content, data.sha);
                 executeScript(name, content);
-
-                // После загрузки _shared.js — обновляем версию в футере
-                if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updatePreloaderText('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION);
-                }
 
                 log.ok(name + ' — загружен за ' + Math.round(performance.now() - ts) + ' мс');
             } catch (e) {
