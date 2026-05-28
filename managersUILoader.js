@@ -61,28 +61,12 @@ console.log('[Котёл] Загрузчик запущен');
 (function createPreloader() {
     if (document.getElementById('kb-preloader')) return;
     GM_addStyle(`
-        .kb-footer-indicator {
-            display: inline-block;
-            position: relative;
+        #kb-footer-indicator {
             font-size: 11px;
             color: #999;
             white-space: nowrap;
-            vertical-align: baseline;
-        }
-        .kb-fi-ver,
-        .kb-fi-log {
-            font-size: 11px;
-            color: #999;
             transition: opacity 0.3s ease;
         }
-        .kb-fi-log {
-            position: absolute;
-            left: 0; top: 0;
-            opacity: 0;
-            pointer-events: none;
-        }
-        .kb-fi-log.visible { opacity: 1; }
-        .kb-fi-ver.hidden   { opacity: 0; }
     `);
     // Инициализация футерного индикатора
     function initFooterIndicator() {
@@ -152,27 +136,15 @@ console.log('[Котёл] Загрузчик запущен');
  *       'set' — напрямую устанавливает оба текста
  */
 function updateFooterIndicator(text, mode) {
-    var wrapper = document.getElementById('kb-footer-indicator');
-    if (!wrapper) return;
-    var verEl = wrapper.querySelector('.kb-fi-ver');
-    var logEl = wrapper.querySelector('.kb-fi-log');
-
-    if (!verEl || !logEl) return;
-
+    var el = document.getElementById('kb-footer-indicator');
+    if (!el) return;
     if (mode === 'log') {
-        // Показать лог поверх версии
-        logEl.textContent = text;
-        logEl.classList.add('visible');
-        verEl.classList.add('hidden');
+        el.dataset.saved = el.textContent;
+        el.textContent = text;
     } else if (mode === 'version') {
-        // Вернуть версию
-        logEl.classList.remove('visible');
-        verEl.classList.remove('hidden');
+        el.textContent = el.dataset.saved || text;
     } else {
-        // Прямая установка
-        verEl.textContent = text;
-        verEl.classList.remove('hidden');
-        logEl.classList.remove('visible');
+        el.textContent = text;
     }
 }
 
