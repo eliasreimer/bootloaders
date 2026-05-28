@@ -62,31 +62,27 @@ console.log('[Котёл] Загрузчик запущен');
     if (document.getElementById('kb-preloader')) return;
     GM_addStyle(`
         .kb-footer-indicator {
+            display: inline-block;
+            position: relative;
             font-size: 11px;
             color: #999;
             white-space: nowrap;
-            position: relative;
-            transition: opacity 0.3s ease;
+            vertical-align: baseline;
         }
-        .kb-footer-indicator__version,
-        .kb-footer-indicator__log {
-            display: inline-block;
+        .kb-fi-ver,
+        .kb-fi-log {
             font-size: 11px;
             color: #999;
             transition: opacity 0.3s ease;
         }
-        .kb-footer-indicator__log {
+        .kb-fi-log {
             position: absolute;
-            left: 0;
-            top: 0;
+            left: 0; top: 0;
             opacity: 0;
+            pointer-events: none;
         }
-        .kb-footer-indicator__log.visible {
-            opacity: 1;
-        }
-        .kb-footer-indicator__version.hidden {
-            opacity: 0;
-        }
+        .kb-fi-log.visible { opacity: 1; }
+        .kb-fi-ver.hidden   { opacity: 0; }
     `);
     // Инициализация футерного индикатора
     function initFooterIndicator() {
@@ -94,40 +90,43 @@ console.log('[Котёл] Загрузчик запущен');
         var pfRight = document.querySelector('.pf-right');
         if (!pfRight) return;
 
-        // Скрываем блок с аккаунтом + соседний разделитель (point-status)
+        // Меняем "v. X.Y.Z" на "Версия S2 CRM: X.Y.Z"
+        var versionLink = pfRight.querySelector('a.version-text');
+        if (versionLink) {
+            var m = versionLink.textContent.match(/v\.\s*([\d.]+)/);
+            if (m) versionLink.textContent = 'Версия S2 CRM: ' + m[1];
+        }
+
+        // Скрываем юзер-аккаунт + оба разделителя рядом
         var userAccount = pfRight.querySelector('.page-footer__user-account');
         if (userAccount) {
-            var prevPoint = userAccount.previousElementSibling;
-            if (prevPoint && prevPoint.classList.contains('point-status')) prevPoint.style.display = 'none';
+            // Скрываем точку перед аккаунтом
+            var prev = userAccount.previousElementSibling;
+            if (prev && prev.classList.contains('point-status')) prev.style.display = 'none';
+            // Скрываем точку после аккаунта
+            var next = userAccount.nextElementSibling;
+            if (next && next.classList.contains('point-status')) next.style.display = 'none';
             userAccount.style.display = 'none';
         }
 
-        // Вставляем на место скрытого юзер-аккаунта (между version и hotkeys)
+        // Вставляем индикатор версии скриптов + разделитель перед hotkeys
         var hotkeys = pfRight.querySelector('.page-footer__hotkeys');
-        var versionLink = pfRight.querySelector('a.version-text');
-        if (!versionLink && !hotkeys) return;
+        if (!hotkeys) return;
 
+        // Добавляем разделитель и индикатор перед hotkeys
         var wrapper = document.createElement('span');
         wrapper.id = 'kb-footer-indicator';
         wrapper.className = 'kb-footer-indicator';
-        wrapper.style.position = 'relative';
-        wrapper.style.display = 'inline-flex';
-        wrapper.style.alignItems = 'center';
         wrapper.innerHTML =
-            '<span class="kb-footer-indicator__version">Версия скриптов: загрузка...</span>' +
-            '<span class="kb-footer-indicator__log"></span>';
+            '<span class="kb-fi-ver">Версия скриптов: загрузка...</span>' +
+            '<span class="kb-fi-log"></span>';
 
-        // Вставляем перед hotkeys (они остаются как были)
-        if (hotkeys) {
-            // Также скрываем point-status перед hotkeys, т.к. мы его заменяем
-            var hotkeysPrev = hotkeys.previousElementSibling;
-            if (hotkeysPrev && hotkeysPrev.classList.contains('point-status') && hotkeysPrev.style.display !== 'none') {
-                // Оставляем этот разделитель — он между нами и hotkeys
-            }
-            hotkeys.parentNode.insertBefore(wrapper, hotkeys);
-        } else {
-            versionLink.after(wrapper);
-        }
+        var sep = document.createElement('span');
+        sep.className = 'point-status';
+        sep.style.display = 'inline-block';
+
+        hotkeys.parentNode.insertBefore(wrapper, hotkeys);
+        hotkeys.parentNode.insertBefore(sep, hotkeys);
     }
 
     // Пробуем сразу, если футер уже в DOM
@@ -155,8 +154,8 @@ console.log('[Котёл] Загрузчик запущен');
 function updateFooterIndicator(text, mode) {
     var wrapper = document.getElementById('kb-footer-indicator');
     if (!wrapper) return;
-    var verEl = wrapper.querySelector('.kb-footer-indicator__version');
-    var logEl = wrapper.querySelector('.kb-footer-indicator__log');
+    var verEl = wrapper.querySelector('.kb-fi-ver');
+    var logEl = wrapper.querySelector('.kb-fi-log');
 
     if (!verEl || !logEl) return;
 
