@@ -23,14 +23,14 @@
 
     // Сброс кэша при обновлении shell-скрипта
     var SHELL_VERSION = '2026.05.27.2';
-    var lastShellVer = GM_getValue('kettle_shell_version') || '';
+    var lastShellVer = GM_getValue('s2crm_shell_version') || '';
     if (lastShellVer !== SHELL_VERSION) {
         ['_shared.js', 'keetleCRM.js', 'kettleAdmin.js'].forEach(function(name) {
-            GM_setValue('kettle_cache_' + name, null);
-            GM_setValue('kettle_meta_' + name, null);
+            GM_setValue('s2crm_cache_' + name, null);
+            GM_setValue('s2crm_meta_' + name, null);
         });
-        GM_setValue('kettle_shell_version', SHELL_VERSION);
-        console.log('[Котёл] Shell обновлён до ' + SHELL_VERSION + ' — кэш сброшен');
+        GM_setValue('s2crm_shell_version', SHELL_VERSION);
+        console.log('[S2 CRM] Shell обновлён до ' + SHELL_VERSION + ' — кэш сброшен');
     }
 
     const URL = 'https://raw.githubusercontent.com/eliasreimer/bootloaders/master/managersUILoader.js';
@@ -39,15 +39,15 @@
         method: 'GET',
         url: URL,
         onload(r) {
-            if (r.status !== 200) return console.error('[Котёл] Ошибка загрузчика:', r.status);
+            if (r.status !== 200) return console.error('[S2 CRM] Ошибка загрузчика:', r.status);
             try {
                 const fn = new Function(
                     'GM_xmlhttpRequest','GM_notification','GM_getValue','GM_setValue','GM_deleteValue','GM_addStyle','GM_registerMenuCommand',
                     r.responseText
                 );
                 fn(GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue, GM_deleteValue, GM_addStyle, GM_registerMenuCommand);
-            } catch(e) { console.error('[Котёл]', e); }
+            } catch(e) { console.error('[S2 CRM]', e); }
         },
-        onerror(e) { console.error('[Котёл] Ошибка сети:', e); },
+        onerror(e) { console.error('[S2 CRM] Ошибка сети:', e); },
     });
 })();
