@@ -61,51 +61,119 @@ console.log('[Котёл] Загрузчик запущен');
 (function createPreloader() {
     if (document.getElementById('kb-preloader')) return;
     GM_addStyle(`
-        #kb-preloader {
-            position: fixed; bottom: 20px; right: 56px; z-index: 100001;
-            display: flex; align-items: center; gap: 8px;
-            padding: 8px 14px; border-radius: 10px;
-            background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: 12px; font-weight: 500; color: #555;
-            animation: kb-preloader-in 0.3s ease;
-            transition: opacity 0.3s ease, transform 0.3s ease;
+        .kb-footer-indicator {
+            font-size: 11px;
+            color: #999;
+            white-space: nowrap;
+            min-width: 180px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: opacity 0.3s ease;
         }
-        #kb-preloader.hiding {
-            opacity: 0; transform: translateY(8px);
+        .kb-footer-indicator__version {
+            color: #999;
         }
-        #kb-preloader-icon {
-            width: 16px; height: 16px;
-            border: 2px solid #e0e3e7; border-top-color: #ff9800;
-            border-radius: 50%;
-            animation: kb-preloader-spin 0.8s linear infinite;
+        .kb-footer-indicator__log {
+            color: #bbb;
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        #kb-preloader-text { white-space: nowrap; }
-        @keyframes kb-preloader-spin { to { transform: rotate(360deg); } }
-        @keyframes kb-preloader-in { from { opacity:0; transform: translateY(8px); } }
+        .kb-footer-indicator__log.visible {
+            opacity: 1;
+        }
+        .kb-footer-indicator__version.hidden {
+            opacity: 0;
+        }
     `);
-    const el = document.createElement('div');
-    el.id = 'kb-preloader';
-    el.innerHTML = '<div id="kb-preloader-icon"></div><span id="kb-preloader-text">Котёл варится...</span>';
-    document.body.appendChild(el);
+    // Инициализация футерного индикатора (безопасно — футер может быть ещё не в DOM)
+    function initFooterIndicator() {
+        if (document.getElementById('kb-footer-indicator')) return;
+        var pfRight = document.querySelector('.pf-right');
+        if (!pfRight) return;
+
+        // Скрываем блок с аккаунтом + соседний разделитель
+        var userAccount = pfRight.querySelector('.page-footer__user-account');
+        if (userAccount) {
+            var prevPoint = userAccount.previousElementSibling;
+            if (prevPoint && prevPoint.classList.contains('point-status')) prevPoint.style.display = 'none';
+            userAccount.style.display = 'none';
+        }
+
+        // Вставляем наш индикатор после version-text + первого point-status
+        var versionLink = pfRight.querySelector('a.version-text');
+        if (!versionLink) return;
+        var firstPoint = versionLink.nextElementSibling;
+
+        var wrapper = document.createElement('span');
+        wrapper.id = 'kb-footer-indicator';
+        wrapper.className = 'kb-footer-indicator';
+        wrapper.style.position = 'relative';
+        wrapper.innerHTML =
+            '<span class="kb-footer-indicator__version">Котёл — загрузка...</span>' +
+            '<span class="kb-footer-indicator__log"></span>';
+
+        if (firstPoint && firstPoint.classList.contains('point-status')) {
+            firstPoint.after(wrapper);
+        } else {
+            versionLink.after(wrapper);
+        }
+    }
+
+    // Пробуем сразу, если футер уже в DOM
+    initFooterIndicator();
+
+    // Если футер ещё не отрендерен — ждём
+    if (!document.getElementById('kb-footer-indicator')) {
+        var _ftObs = new MutationObserver(function() {
+            if (document.querySelector('.pf-right')) {
+                _ftObs.disconnect();
+                initFooterIndicator();
+            }
+        });
+        _ftObs.observe(document.body, { childList: true, subtree: true });
+        setTimeout(function() { _ftObs.disconnect(); }, 10000);
+    }
 })();
 
-function hidePreloader(text, isError) {
-    var el = document.getElementById('kb-preloader');
-    if (!el) return;
-    var txt = document.getElementById('kb-preloader-text');
-    var ico = document.getElementById('kb-preloader-icon');
-    if (txt) txt.textContent = text || 'Готово';
-    if (ico) {
-        ico.style.borderTopColor = isError ? '#dc3545' : '#4CAF50';
-        ico.style.animation = 'none'; // stop spinning
+/**
+ * Обновляет текст в футерном индикаторе.
+ * mode: 'log' — плавно показывает лог (прячется версия)
+ *       'version' — плавно возвращает версию
+ *       'set' — напрямую устанавливает оба текста
+ */
+function updateFooterIndicator(text, mode) {
+    var wrapper = document.getElementById('kb-footer-indicator');
+    if (!wrapper) return;
+    var verEl = wrapper.querySelector('.kb-footer-indicator__version');
+    var logEl = wrapper.querySelector('.kb-footer-indicator__log');
+
+    if (!verEl || !logEl) return;
+
+    if (mode === 'log') {
+        // Показать лог поверх версии
+        logEl.textContent = text;
+        logEl.classList.add('visible');
+        verEl.classList.add('hidden');
+    } else if (mode === 'version') {
+        // Вернуть версию
+        logEl.classList.remove('visible');
+        verEl.classList.remove('hidden');
+    } else {
+        // Прямая установка
+        verEl.textContent = text;
+        verEl.classList.remove('hidden');
+        logEl.classList.remove('visible');
     }
-    setTimeout(function() { el.remove(); }, 1500);
+}
+
+// Совместимость (если другие скрипты вызывают старые функции)
+function hidePreloader(text, isError) {
+    updateFooterIndicator(text || 'Готово', 'set');
 }
 function updatePreloaderText(text) {
-    var el = document.getElementById('kb-preloader-text');
-    if (el) el.textContent = text;
+    updateFooterIndicator(text, 'set');
 }
 
 // ========== Захват GM_* API ==========
@@ -446,6 +514,10 @@ function updatePreloaderText(text) {
             if (cached) {
                 log.debug(name + ' — из кэше (' + cached.age + ' мин)');
                 executeScript(name, cached.content);
+                // После загрузки _shared.js — обновляем версию в футере
+                if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
+                    updateFooterIndicator('Котёл ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                }
             } else {
                 needsFetch.push(name);
             }
@@ -453,8 +525,9 @@ function updatePreloaderText(text) {
 
         if (needsFetch.length === 0) {
             var elapsed = Math.round(performance.now() - t0);
-            log.ok('Все из кэша за ' + elapsed + ' мс');
-            hidePreloader('Готово за ' + elapsed + ' мс');
+            log.ok('Все из кэше за ' + elapsed + ' мс');
+            updateFooterIndicator('Готово за ' + elapsed + ' мс', 'log');
+            setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
             backgroundUpdate(token);
             return;
         }
@@ -475,6 +548,11 @@ function updatePreloaderText(text) {
                 setCache(name, content, data.sha);
                 executeScript(name, content);
 
+                // После загрузки _shared.js — обновляем версию в футере
+                if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
+                    updateFooterIndicator('Котёл ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                }
+
                 log.ok(name + ' — загружен за ' + Math.round(performance.now() - ts) + ' мс');
             } catch (e) {
                 log.error(name + ' — ОШИБКА:', e.message);
@@ -483,7 +561,8 @@ function updatePreloaderText(text) {
 
         var total = Math.round(performance.now() - t0);
         log.ok('Загрузка завершена за ' + total + ' мс');
-        hidePreloader('Готово за ' + total + ' мс');
+        updateFooterIndicator('Загружено за ' + total + ' мс', 'log');
+        setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
     }
 
     // Фоновая проверка обновлений для закэшированных скриптов
