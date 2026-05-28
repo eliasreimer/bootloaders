@@ -62,7 +62,7 @@ console.log('[Котёл] Загрузчик запущен');
     if (document.getElementById('kb-preloader')) return;
     GM_addStyle(`
         #kb-preloader {
-            position: fixed; bottom: 56px; right: 56px; z-index: 100001;
+            position: fixed; bottom: 20px; right: 56px; z-index: 100001;
             display: flex; align-items: center; gap: 8px;
             padding: 8px 14px; border-radius: 10px;
             background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
