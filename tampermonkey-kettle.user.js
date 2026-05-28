@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         S2 CRM. Инструменты и улучшения для ОП.
-// @version      2026.05.27.2
+// @version      2.0
 // @description  ...
 // @author       Elias Reimer ilya.raymer@skillbox.ru
 // @match        https://crm.corp.skillbox.pro/*
@@ -22,7 +22,7 @@
     'use strict';
 
     // Сброс кэша при обновлении shell-скрипта
-    var SHELL_VERSION = '2026.05.27.2';
+    var SHELL_VERSION = '2.0';
     var lastShellVer = GM_getValue('s2crm_shell_version') || '';
     if (lastShellVer !== SHELL_VERSION) {
         ['_shared.js', 'keetleCRM.js', 'kettleAdmin.js'].forEach(function(name) {
