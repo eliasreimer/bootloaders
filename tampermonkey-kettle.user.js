@@ -33,7 +33,7 @@
         console.log('[S2 CRM] Shell обновлён до ' + SHELL_VERSION + ' — кэш сброшен');
     }
 
-    const URL = 'https://raw.githubusercontent.com/eliasreimer/bootloaders/master/managersUILoader.js';
+    const URL = 'https://raw.githubusercontent.com/eliasreimer/bootloaders/master/managersUILoader.js?v=' + SHELL_VERSION;
 
     GM_xmlhttpRequest({
         method: 'GET',
