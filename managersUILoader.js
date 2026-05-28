@@ -437,7 +437,6 @@ function updatePreloaderText(text) {
             var cached = getCache(name);
             if (cached) {
                 log.debug(name + ' — из кэша (' + cached.age + ' мин)');
-                updatePreloaderText(name + ' (кэш)');
                 executeScript(name, cached.content);
             } else {
                 needsFetch.push(name);
@@ -460,7 +459,6 @@ function updatePreloaderText(text) {
             var name = needsFetch[i];
             var url = KETTLE_BOOT.repoBase + name;
             var ts = performance.now();
-            updatePreloaderText('Загрузка ' + name + '...');
             try {
                 var raw = await fetchScript(url, token, KETTLE_BOOT.retries);
                 var data = JSON.parse(raw);
