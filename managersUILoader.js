@@ -541,52 +541,67 @@ function updatePreloaderText(text) {
         }
     }
 
-    // Периодический полл обновлений (30 сек)
-    // Один запрос на HEAD коммита вместо N запросов на каждый скрипт
+    // Периодический полл обновлений (30 сек ± jitter)
+    // GitHub API с ETag: 304 не считается против rate limit
     function watchForUpdates(token) {
-        var knownSha = GM_getValue('kettle_repo_sha') || null;
         var pollUrl = 'https://api.github.com/repos/eliasreimer/managersUI/commits?path=_shared.js&per_page=1';
         var toast = null;
         var polling = true;
+        var etag = null;
 
-        var timer = setInterval(function() {
+        function poll() {
             if (!polling) return;
+            var headers = {
+                'Authorization': 'Bearer ' + token,
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'Tampermonkey Kettle Bootloader',
+            };
+            if (etag) headers['If-None-Match'] = etag;
+
             GM_xmlhttpRequest({
                 method: 'GET',
                 url: pollUrl,
                 timeout: 10000,
-                headers: {
-                    'Authorization': 'Bearer ' + token,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'User-Agent': 'Tampermonkey Kettle Bootloader',
-                },
+                headers: headers,
                 onload: function(r) {
-                    if (r.status !== 200 || !r.responseText) return;
-                    try {
-                        var commits = JSON.parse(r.responseText);
-                        if (!commits.length) return;
-                        var latestSha = commits[0].sha;
+                    // Сохраняем ETag для следующего запроса
+                    if (r.responseHeaders) {
+                        var match = r.responseHeaders.match(/ETag:\s*(\"[^"]+\")/);
+                        if (match) etag = match[1];
+                    }
 
-                        if (!knownSha) {
-                            knownSha = latestSha;
-                            GM_setValue('kettle_repo_sha', latestSha);
-                            return;
-                        }
+                    if (r.status === 304) return; // без изменений — не считается
 
-                        if (latestSha !== knownSha) {
-                            // Обновление найдено — останавливаем полл, показываем тост
-                            polling = false;
-                            clearInterval(timer);
-                            knownSha = latestSha;
+                    if (r.status === 200 && r.responseText) {
+                        try {
+                            var commits = JSON.parse(r.responseText);
+                            if (!commits.length) return;
+                            var latestSha = commits[0].sha;
+                            var savedSha = GM_getValue('kettle_repo_sha');
                             GM_setValue('kettle_repo_sha', latestSha);
-                            showUpdateToast();
-                        }
-                    } catch (e) { /* тихо */ }
+
+                            if (savedSha && latestSha !== savedSha) {
+                                polling = false;
+                                showUpdateToast();
+                                return;
+                            }
+                        } catch (e) { /* тихо */ }
+                    }
                 },
                 onerror: function() { /* тихо */ },
                 ontimeout: function() { /* тихо */ },
             });
-        }, KETTLE_BOOT.pollIntervalMs);
+
+            // Следующий запрос с jitter ±5 сек
+            if (polling) {
+                var jitter = Math.floor(Math.random() * 10000) - 5000;
+                setTimeout(poll, KETTLE_BOOT.pollIntervalMs + jitter);
+            }
+        }
+
+        // Первый запрос через jitter чтобы разнести юзеров
+        var initialDelay = Math.floor(Math.random() * 10000);
+        setTimeout(poll, initialDelay);
 
         function showUpdateToast() {
             if (toast && toast.parentNode) return;
