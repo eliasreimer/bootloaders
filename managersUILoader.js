@@ -78,7 +78,7 @@ function initFooter() {
     if (userAccount) {
         var span = document.createElement('span');
         span.id = 'kb-footer-indicator';
-        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap;display:inline-block;min-width:180px';
+        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap';
         span.textContent = 'Версия скриптов: загрузка...';
         userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
     }
@@ -459,7 +459,7 @@ function updatePreloaderText(text) {
         if (needsFetch.length === 0) {
             var elapsed = Math.round(performance.now() - t0);
             log.ok('Все из кэше за ' + elapsed + ' мс');
-            updatePreloaderText('Готово за ' + elapsed + ' мс'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
+            updatePreloaderText('Скрипты загружены за ' + elapsed + ' мс.'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
             setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
             backgroundUpdate(token);
             return;
@@ -494,7 +494,7 @@ function updatePreloaderText(text) {
 
         var total = Math.round(performance.now() - t0);
         log.ok('Загрузка завершена за ' + total + ' мс');
-        updatePreloaderText('Загружено за ' + total + ' мс'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
+        updatePreloaderText('Скрипты загружены за ' + total + ' мс.'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
         setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
     }
 
