@@ -434,9 +434,14 @@ function updatePreloaderText(text) {
         var needsFetch = [];
 
         KETTLE_BOOT.scripts.forEach(function(name) {
+            // Если уже есть пропуски — всё остальное тоже на загрузку (порядок важен)
+            if (needsFetch.length > 0) {
+                needsFetch.push(name);
+                return;
+            }
             var cached = getCache(name);
             if (cached) {
-                log.debug(name + ' — из кэша (' + cached.age + ' мин)');
+                log.debug(name + ' — из кэше (' + cached.age + ' мин)');
                 executeScript(name, cached.content);
             } else {
                 needsFetch.push(name);
