@@ -65,7 +65,8 @@ console.log('[Котёл] Загрузчик запущен');
             font-size: 11px;
             color: #999;
             white-space: nowrap;
-            transition: opacity 0.3s ease;
+            display: inline-block;
+            min-width: 170px;
         }
     `);
     // Инициализация футерного индикатора
