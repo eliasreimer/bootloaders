@@ -56,106 +56,58 @@ const KETTLE_BOOT = {
 
 console.log('[Котёл] Загрузчик запущен');
 
-// ========== ПРЕЛОАДЕР ==========
+// ========== ФУТЕРНЫЙ ИНДИКАТОР ==========
 
-(function createPreloader() {
-    if (document.getElementById('kb-preloader')) return;
-    GM_addStyle(`
-        #kb-footer-indicator {
-            font-size: 11px;
-            color: #999;
-            white-space: nowrap;
-            display: inline-block;
-            min-width: 170px;
-        }
-    `);
-    // Инициализация футерного индикатора
-    function initFooterIndicator() {
-        if (document.getElementById('kb-footer-indicator')) return;
-        var pfRight = document.querySelector('.pf-right');
-        if (!pfRight) return;
+function initFooter() {
+    if (document.getElementById('kb-footer-indicator')) return;
+    var pfRight = document.querySelector('.pf-right');
+    if (!pfRight) return;
 
-        // Меняем "v. X.Y.Z" на "Версия S2 CRM: X.Y.Z"
-        var versionLink = pfRight.querySelector('a.version-text');
-        if (versionLink) {
-            var m = versionLink.textContent.match(/v\.\s*([\d.]+)/);
-            if (m) versionLink.textContent = 'Версия S2 CRM: ' + m[1];
-        }
-
-        // Скрываем юзер-аккаунт + оба разделителя рядом
-        var userAccount = pfRight.querySelector('.page-footer__user-account');
-        if (userAccount) {
-            // Скрываем точку перед аккаунтом
-            var prev = userAccount.previousElementSibling;
-            if (prev && prev.classList.contains('point-status')) prev.style.display = 'none';
-            // Скрываем точку после аккаунта
-            var next = userAccount.nextElementSibling;
-            if (next && next.classList.contains('point-status')) next.style.display = 'none';
-            userAccount.style.display = 'none';
-        }
-
-        // Вставляем индикатор версии скриптов + разделитель перед hotkeys
-        var hotkeys = pfRight.querySelector('.page-footer__hotkeys');
-        if (!hotkeys) return;
-
-        // Добавляем разделитель и индикатор перед hotkeys
-        var wrapper = document.createElement('span');
-        wrapper.id = 'kb-footer-indicator';
-        wrapper.className = 'kb-footer-indicator';
-        wrapper.innerHTML =
-            '<span class="kb-fi-ver">Версия скриптов: загрузка...</span>' +
-            '<span class="kb-fi-log"></span>';
-
-        var sep = document.createElement('span');
-        sep.className = 'point-status';
-        sep.style.display = 'inline-block';
-
-        hotkeys.parentNode.insertBefore(wrapper, hotkeys);
-        hotkeys.parentNode.insertBefore(sep, hotkeys);
+    // "v. 4.2.73" → "Версия S2 CRM: 4.2.73"
+    var versionLink = pfRight.querySelector('a.version-text');
+    if (versionLink) {
+        var m = versionLink.textContent.match(/v\.\s*([\d.]+)/);
+        if (m) versionLink.textContent = 'Версия S2 CRM: ' + m[1];
     }
 
-    // Пробуем сразу, если футер уже в DOM
-    initFooterIndicator();
+    // Скрываем ТОЛЬКО юзер-аккаунт
+    var userAccount = pfRight.querySelector('.page-footer__user-account');
+    if (userAccount) userAccount.style.display = 'none';
 
-    // Если футер ещё не отрендерен — ждём
-    if (!document.getElementById('kb-footer-indicator')) {
-        var _ftObs = new MutationObserver(function() {
-            if (document.querySelector('.pf-right')) {
-                _ftObs.disconnect();
-                initFooterIndicator();
-            }
-        });
-        _ftObs.observe(document.body, { childList: true, subtree: true });
-        setTimeout(function() { _ftObs.disconnect(); }, 10000);
-    }
-})();
-
-/**
- * Обновляет текст в футерном индикаторе.
- * mode: 'log' — плавно показывает лог (прячется версия)
- *       'version' — плавно возвращает версию
- *       'set' — напрямую устанавливает оба текста
- */
-function updateFooterIndicator(text, mode) {
-    var el = document.getElementById('kb-footer-indicator');
-    if (!el) return;
-    if (mode === 'log') {
-        el.dataset.saved = el.textContent;
-        el.textContent = text;
-    } else if (mode === 'version') {
-        el.textContent = el.dataset.saved || text;
-    } else {
-        el.textContent = text;
+    // Вставляем индикатор вместо юзер-аккаунта (между двумя point-status)
+    if (userAccount) {
+        var span = document.createElement('span');
+        span.id = 'kb-footer-indicator';
+        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap;display:inline-block;min-width:180px';
+        span.textContent = 'Версия скриптов: загрузка...';
+        userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
     }
 }
 
-// Совместимость (если другие скрипты вызывают старые функции)
+// Пробуем сразу
+initFooter();
+
+// Если футер ещё не в DOM — ждём
+if (!document.getElementById('kb-footer-indicator')) {
+    var _ftObs = new MutationObserver(function() {
+        if (document.querySelector('.pf-right')) {
+            _ftObs.disconnect();
+            initFooter();
+        }
+    });
+    _ftObs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(function() { _ftObs.disconnect(); }, 10000);
+}
+
 function hidePreloader(text, isError) {
-    updateFooterIndicator(text || 'Готово', 'set');
+    var el = document.getElementById('kb-footer-indicator');
+    if (el) el.textContent = text || 'Готово';
 }
 function updatePreloaderText(text) {
-    updateFooterIndicator(text, 'set');
+    var el = document.getElementById('kb-footer-indicator');
+    if (el) el.textContent = text;
 }
+
 
 // ========== Захват GM_* API ==========
     // GM_* доступны из внешнего scope (new Function в Tampermonkey shell).
@@ -476,7 +428,7 @@ function updatePreloaderText(text) {
         log.info('loadAll() вызван');
         var token = await getToken();
         log.info('токен:', token ? 'получен' : 'отсутствует');
-        if (!token) { hidePreloader('Нет токена', true); return; }
+        if (!token) { updatePreloaderText('Ошибка: нет токена'); return; }
 
         var t0 = performance.now();
         log.info('Загрузка ' + KETTLE_BOOT.scripts.length + ' скриптов...');
@@ -497,7 +449,7 @@ function updatePreloaderText(text) {
                 executeScript(name, cached.content);
                 // После загрузки _shared.js — обновляем версию в футере
                 if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updateFooterIndicator('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                    updatePreloaderText('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION);
                 }
             } else {
                 needsFetch.push(name);
@@ -507,7 +459,7 @@ function updatePreloaderText(text) {
         if (needsFetch.length === 0) {
             var elapsed = Math.round(performance.now() - t0);
             log.ok('Все из кэше за ' + elapsed + ' мс');
-            updateFooterIndicator('Готово за ' + elapsed + ' мс', 'log');
+            updatePreloaderText('Готово за ' + elapsed + ' мс'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
             setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
             backgroundUpdate(token);
             return;
@@ -531,7 +483,7 @@ function updatePreloaderText(text) {
 
                 // После загрузки _shared.js — обновляем версию в футере
                 if (name === '_shared.js' && window.__KETTLE && window.__KETTLE.SCRIPT_VERSION) {
-                    updateFooterIndicator('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION, 'set');
+                    updatePreloaderText('Версия скриптов: ' + window.__KETTLE.SCRIPT_VERSION);
                 }
 
                 log.ok(name + ' — загружен за ' + Math.round(performance.now() - ts) + ' мс');
@@ -542,7 +494,7 @@ function updatePreloaderText(text) {
 
         var total = Math.round(performance.now() - t0);
         log.ok('Загрузка завершена за ' + total + ' мс');
-        updateFooterIndicator('Загружено за ' + total + ' мс', 'log');
+        updatePreloaderText('Загружено за ' + total + ' мс'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
         setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
     }
 
