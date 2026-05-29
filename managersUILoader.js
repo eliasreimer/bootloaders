@@ -33,9 +33,6 @@ const KETTLE_BOOT = {
     // Таймаут запроса (мс)
     requestTimeoutMs: 15000,
 
-    // Интервал проверки обновлений (мс)
-    pollIntervalMs: 30000,
-
     // Скрипты (порядок = порядок загрузки)
     // _shared.js ВСЕГДА первый — общий модуль
     scripts: [
@@ -625,14 +622,14 @@ function showLoadComplete(elapsedMs) {
 
             function done() {
                 if (--pending === 0 && polling) {
-                    var jitter = Math.floor(Math.random() * 10000) - 5000;
+                    var jitter = Math.floor(Math.random() * 6000) - 3000;
                     setTimeout(pollAll, 60000 + jitter);
                 }
             }
         }
 
-        // Первый запрос через рандомную задержку 0-10с
-        setTimeout(pollAll, Math.floor(Math.random() * 10000));
+        // Первый запрос через рандомную задержку 0-5с
+        setTimeout(pollAll, Math.floor(Math.random() * 5000));
     }
 
     // ========== ЗАПУСК ==========
