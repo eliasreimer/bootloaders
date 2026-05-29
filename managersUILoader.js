@@ -87,7 +87,7 @@ function initFooter() {
     if (userAccount) {
         var span = document.createElement('span');
         span.id = 'kb-footer-indicator';
-        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap;display:inline-block;min-width:' + _footerMinW + 'px;opacity:0;transition:opacity .25s ease;';
+        span.style.cssText = 'font-size:11px;color:#d5d5d5;white-space:nowrap;display:inline-block;min-width:' + _footerMinW + 'px;opacity:0;transition:opacity .25s ease;';
         span.textContent = 'Загрузка скриптов...';
         userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
         // Плавное появление
