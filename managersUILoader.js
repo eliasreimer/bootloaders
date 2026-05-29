@@ -514,40 +514,35 @@ function showLoadComplete(elapsedMs) {
 
     // ========== АВТООБНОВЛЕНИЕ ==========
 
-    // CSS для кнопки обновления (в бутлоадере, т.к. кнопка управляется им)
-    GM_addStyle(`
-        .kb-main.kb-update-btn {
-            min-width: 248px;
-            animation: kb-update-pulse 2s ease-in-out infinite;
-        }
-        @keyframes kb-update-pulse {
-            0%, 100% { box-shadow: 0 2px 8px rgba(74, 143, 218, 0.25); }
-            50% { box-shadow: 0 4px 18px rgba(74, 143, 218, 0.5); }
-        }
-    `);
+    /**
+     * Тихое обновление: prefetch всех скриптов в кэш, затем reload.
+     * При reload — загрузка из свежего кэша за 0 мс, менеджер не замечает.
+     */
+    function silentReload() {
+        log.info('Тихое обновление: prefetch скриптов...');
+        updatePreloaderText('Обновление скриптов...');
 
-    /** Заменяет все кнопки Котла на одну кнопку «Обновить скрипты» */
-    function showUpdateButton() {
-        var container = document.querySelector('.kb-container');
-        if (!container) {
-            var anchor = document.getElementById('js-global-search');
-            if (anchor) {
-                container = document.createElement('div');
-                container.className = 'kb-container';
-                container.style.cssText = 'display:flex;align-items:center;gap:8px;margin-right:12px;flex-shrink:0;';
-                anchor.parentNode.insertBefore(container, anchor);
-            }
-        }
-        if (container) {
-            container.innerHTML = '';
-            var btn = document.createElement('button');
-            btn.className = 'kb-main kb-update-btn';
-            btn.innerHTML = '<span class="kb-text">Обновить скрипты</span>';
-            btn.addEventListener('click', function() { location.reload(); });
-            container.appendChild(btn);
-        }
-        updatePreloaderText('Доступно обновление');
-        log.info('Кнопка «Обновить скрипты» показана');
+        var names = KETTLE_BOOT.scripts;
+        var pending = names.length;
+        var token = GM_getValue('kettle_github_token');
+
+        names.forEach(function(name) {
+            fetchScript(KETTLE_BOOT.repoBase + name, token, 1).then(function(raw) {
+                var data = JSON.parse(raw);
+                var content = decodeContent(raw);
+                setCache(name, content, data.sha);
+                if (--pending === 0) {
+                    var delay = 15000 + Math.floor(Math.random() * 15000); // 15-30 сек
+                    log.info('Prefetch завершён, reload через ' + Math.round(delay / 1000) + ' сек');
+                    setTimeout(function() { location.reload(); }, delay);
+                }
+            }).catch(function() {
+                if (--pending === 0) {
+                    log.warn('Prefetch с ошибками, reload через 15 сек');
+                    setTimeout(function() { location.reload(); }, 15000);
+                }
+            });
+        });
     }
 
     /**
@@ -608,7 +603,7 @@ function showLoadComplete(elapsedMs) {
                                 if (saved && sha !== saved) {
                                     polling = false;
                                     log.info('Обновление обнаружено: ' + repo.name + ' (' + sha.substring(0, 7) + ')');
-                                    showUpdateButton();
+                                    silentReload();
                                     return;
                                 }
                             } catch (e) { /* тихо */ }
