@@ -432,14 +432,16 @@ console.log('[Котёл] Загрузчик запущен');
     // ========== АВТООБНОВЛЕНИЕ ==========
 
     /**
-     * Тихое обновление: prefetch всех скриптов в кэш, затем reload.
-     * При reload — загрузка из свежего кэша за 0 мс, менеджер не замечает.
+     * Prefetch всех скриптов в кэш при обнаружении обновления.
+     * Reload НЕ делается — менеджер сам обновит страницу или откроет новую вкладку,
+     * тогда скрипты подтянутся из свежего кэша.
      */
-    function silentReload() {
-        log.info('Тихое обновление: prefetch скриптов...');
+    function prefetchScripts() {
+        log.info('Обновление обнаружено — prefetch скриптов в кэш...');
 
         var names = KETTLE_BOOT.scripts;
         var pending = names.length;
+        var success = 0;
         var token = GM_getValue('kettle_github_token');
 
         names.forEach(function(name) {
@@ -447,15 +449,14 @@ console.log('[Котёл] Загрузчик запущен');
                 var data = JSON.parse(raw);
                 var content = decodeContent(raw);
                 setCache(name, content, data.sha);
+                success++;
                 if (--pending === 0) {
-                    var delay = 15000 + Math.floor(Math.random() * 15000); // 15-30 сек
-                    log.info('Prefetch завершён, reload через ' + Math.round(delay / 1000) + ' сек');
-                    setTimeout(function() { location.reload(); }, delay);
+                    log.ok('Prefetch завершён (' + success + '/' + names.length + '). Применится при следующей загрузке страницы.');
                 }
-            }).catch(function() {
+            }).catch(function(e) {
+                log.warn('Prefetch ' + name + ' — ошибка: ' + e.message);
                 if (--pending === 0) {
-                    log.warn('Prefetch с ошибками, reload через 15 сек');
-                    setTimeout(function() { location.reload(); }, 15000);
+                    log.warn('Prefetch завершён с ошибками (' + success + '/' + names.length + ')');
                 }
             });
         });
@@ -465,7 +466,7 @@ console.log('[Котёл] Загрузчик запущен');
      * Периодическая проверка обновлений обоих репозиториев.
      * Полл каждые 60с через GitHub Commits API + ETag.
      * 304 не считается против rate limit (авторизованный токен = 5000/час).
-     * При обнаружении изменения — кнопка «Обновить скрипты» вместо всех кнопок Котла.
+     * При обнаружении изменения — prefetch в кэш, reload НЕ делается.
      */
     function watchForUpdates(token) {
         var repos = [
@@ -473,7 +474,6 @@ console.log('[Котёл] Загрузчик запущен');
             { name: 'scripts',    url: 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1',      shaKey: 'kettle_repo_sha' },
         ];
         var etags = {};
-        var firstPollDone = {};
         var polling = true;
 
         function pollAll() {
@@ -507,21 +507,18 @@ console.log('[Котёл] Загрузчик запущен');
                                 if (!commits.length) { done(); return; }
                                 var sha = commits[0].sha;
                                 var saved = GM_getValue(repo.shaKey);
-                                GM_setValue(repo.shaKey, sha);
 
-                                // Первый полл — синхронизируем SHA, не уведомляем
-                                if (!firstPollDone[repo.name]) {
-                                    firstPollDone[repo.name] = true;
-                                    done();
-                                    return;
-                                }
-
+                                // Если saved нет (первый запуск) — просто запоминаем, не триггерим
+                                // Если saved есть и отличается — обновление, prefetch
                                 if (saved && sha !== saved) {
                                     polling = false;
-                                    log.info('Обновление обнаружено: ' + repo.name + ' (' + sha.substring(0, 7) + ')');
-                                    silentReload();
+                                    log.info('Обновление: ' + repo.name + ' (' + saved.substring(0, 7) + ' → ' + sha.substring(0, 7) + ')');
+                                    GM_setValue(repo.shaKey, sha);
+                                    prefetchScripts();
                                     return;
                                 }
+
+                                GM_setValue(repo.shaKey, sha);
                             } catch (e) { /* тихо */ }
                         }
                         done();
