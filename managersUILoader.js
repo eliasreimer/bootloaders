@@ -485,7 +485,6 @@ function showLoadComplete(elapsedMs) {
             var elapsed = Math.round(performance.now() - t0);
             log.ok('Все из кэше за ' + elapsed + ' мс');
             showLoadComplete(elapsed);
-            backgroundUpdate(token);
             return;
         }
 
@@ -516,157 +515,124 @@ function showLoadComplete(elapsedMs) {
         showLoadComplete(total);
     }
 
-    // Фоновая проверка обновлений для закэшированных скриптов
-    // При обнаружении нового SHA — перезапускает скрипты и предлагает перезагрузку
-    async function backgroundUpdate(token) {
-        log.debug('Фоновая проверка обновлений...');
+    // ========== АВТООБНОВЛЕНИЕ ==========
 
-        var updated = [];
+    // CSS для кнопки обновления (в бутлоадере, т.к. кнопка управляется им)
+    GM_addStyle(`
+        .kb-main.kb-update-btn {
+            min-width: 248px;
+            animation: kb-update-pulse 2s ease-in-out infinite;
+        }
+        @keyframes kb-update-pulse {
+            0%, 100% { box-shadow: 0 2px 8px rgba(74, 143, 218, 0.25); }
+            50% { box-shadow: 0 4px 18px rgba(74, 143, 218, 0.5); }
+        }
+    `);
 
-        for (var i = 0; i < KETTLE_BOOT.scripts.length; i++) {
-            var name = KETTLE_BOOT.scripts[i];
-            var url = KETTLE_BOOT.repoBase + name;
-            try {
-                var raw = await fetchScript(url, token, 1);
-                var data = JSON.parse(raw);
-                var meta = GM_getValue(cacheMeta(name));
-
-                if (meta && meta.sha === data.sha) continue;
-
-                var content = decodeContent(raw);
-                setCache(name, content, data.sha);
-                updated.push(name);
-                log.debug(name + ' — обновлён в кэше (новый SHA)');
-            } catch (e) {
-                // Тихо — не критично
+    /** Заменяет все кнопки Котла на одну кнопку «Обновить скрипты» */
+    function showUpdateButton() {
+        var container = document.querySelector('.kb-container');
+        if (!container) {
+            var anchor = document.getElementById('js-global-search');
+            if (anchor) {
+                container = document.createElement('div');
+                container.className = 'kb-container';
+                container.style.cssText = 'display:flex;align-items:center;gap:8px;margin-right:12px;flex-shrink:0;';
+                anchor.parentNode.insertBefore(container, anchor);
             }
         }
-
-        GM_setValue('kettle_last_bg_check', Date.now());
-        log.debug('Фоновая проверка завершена');
-
-        if (updated.length > 0) {
-            log.info('Найдены обновления:', updated.join(', '));
-            GM_setValue('kettle_pending_reload', true);
-
-            // Показываем тост с предложением перезагрузки
-            var toast = document.createElement('div');
-            toast.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:100001;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:10px;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;color:#222;animation:kb-preloader-in 0.3s ease;cursor:pointer;';
-            toast.innerHTML = '<span style="color:#43a047;font-weight:600">✓</span> Скрипты обновлены. <span style="color:#4a8fda;font-weight:600;text-decoration:underline">Обновить страницу</span>';
-            toast.title = 'Котёл — обновления ' + updated.join(', ');
-            toast.onclick = function() {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(8px)';
-                toast.style.transition = 'all 0.3s ease';
-                setTimeout(function() { toast.remove(); location.reload(); }, 300);
-            };
-            document.body.appendChild(toast);
-            setTimeout(function() {
-                if (toast.parentNode) {
-                    toast.style.opacity = '0';
-                    toast.style.transition = 'opacity 0.5s ease';
-                    setTimeout(function() { toast.remove(); }, 500);
-                }
-            }, 15000);
+        if (container) {
+            container.innerHTML = '';
+            var btn = document.createElement('button');
+            btn.className = 'kb-main kb-update-btn';
+            btn.innerHTML = '<span class="kb-text">Обновить скрипты</span>';
+            btn.addEventListener('click', function() { location.reload(); });
+            container.appendChild(btn);
         }
+        updatePreloaderText('Доступно обновление');
+        log.info('Кнопка «Обновить скрипты» показана');
     }
 
-    // Периодический полл обновлений (30 сек ± jitter)
-    // GitHub API с ETag: 304 не считается против rate limit
+    /**
+     * Периодическая проверка обновлений обоих репозиториев.
+     * Полл каждые 60с через GitHub Commits API + ETag.
+     * 304 не считается против rate limit (авторизованный токен = 5000/час).
+     * При обнаружении изменения — кнопка «Обновить скрипты» вместо всех кнопок Котла.
+     */
     function watchForUpdates(token) {
-        var pollUrl = 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1';
-        var toast = null;
+        var repos = [
+            { name: 'bootloader', url: 'https://api.github.com/repos/eliasreimer/bootloaders/commits?per_page=1', shaKey: 'kettle_bootloader_sha' },
+            { name: 'scripts',    url: 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1',      shaKey: 'kettle_repo_sha' },
+        ];
+        var etags = {};
+        var firstPollDone = {};
         var polling = true;
-        var etag = null;
-        var firstPoll = true; // флаг первого запроса после смены URL
 
-        function poll() {
+        function pollAll() {
             if (!polling) return;
-            var headers = {
-                'Authorization': 'Bearer ' + token,
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': 'Tampermonkey Kettle Bootloader',
-            };
-            if (etag) headers['If-None-Match'] = etag;
+            var pending = repos.length;
 
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url: pollUrl,
-                timeout: 10000,
-                headers: headers,
-                onload: function(r) {
-                    // Сохраняем ETag для следующего запроса
-                    if (r.responseHeaders) {
-                        var match = r.responseHeaders.match(/ETag:\s*(\"[^\"]+\")/);
-                        if (match) etag = match[1];
-                    }
+            repos.forEach(function(repo) {
+                var headers = {
+                    'Authorization': 'Bearer ' + token,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'Tampermonkey Kettle Bootloader',
+                };
+                if (etags[repo.name]) headers['If-None-Match'] = etags[repo.name];
 
-                    if (r.status === 304) { firstPoll = false; return; }
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: repo.url,
+                    timeout: 10000,
+                    headers: headers,
+                    onload: function(r) {
+                        if (r.responseHeaders) {
+                            var m = r.responseHeaders.match(/ETag:\s*(".*?")/);
+                            if (m) etags[repo.name] = m[1];
+                        }
 
-                    if (r.status === 200 && r.responseText) {
-                        try {
-                            var commits = JSON.parse(r.responseText);
-                            if (!commits.length) return;
-                            var latestSha = commits[0].sha;
-                            var savedSha = GM_getValue('kettle_repo_sha');
-                            GM_setValue('kettle_repo_sha', latestSha);
+                        if (r.status === 304) { done(); return; }
 
-                            if (firstPoll) {
-                                // Первый полл — просто синхронизируем SHA, не показываем тост
-                                firstPoll = false;
-                                return;
-                            }
+                        if (r.status === 200 && r.responseText) {
+                            try {
+                                var commits = JSON.parse(r.responseText);
+                                if (!commits.length) { done(); return; }
+                                var sha = commits[0].sha;
+                                var saved = GM_getValue(repo.shaKey);
+                                GM_setValue(repo.shaKey, sha);
 
-                            if (savedSha && latestSha !== savedSha) {
-                                polling = false;
-                                showUpdateToast();
-                                return;
-                            }
-                        } catch (e) { /* тихо */ }
-                    }
-                },
-                onerror: function() { /* тихо */ },
-                ontimeout: function() { /* тихо */ },
+                                // Первый полл — синхронизируем SHA, не уведомляем
+                                if (!firstPollDone[repo.name]) {
+                                    firstPollDone[repo.name] = true;
+                                    done();
+                                    return;
+                                }
+
+                                if (saved && sha !== saved) {
+                                    polling = false;
+                                    log.info('Обновление обнаружено: ' + repo.name + ' (' + sha.substring(0, 7) + ')');
+                                    showUpdateButton();
+                                    return;
+                                }
+                            } catch (e) { /* тихо */ }
+                        }
+                        done();
+                    },
+                    onerror: function() { done(); },
+                    ontimeout: function() { done(); },
+                });
             });
 
-            // Следующий запрос с jitter ±5 сек
-            if (polling) {
-                var jitter = Math.floor(Math.random() * 10000) - 5000;
-                setTimeout(poll, KETTLE_BOOT.pollIntervalMs + jitter);
-            }
-        }
-
-        // Первый запрос через jitter чтобы разнести юзеров
-        var initialDelay = Math.floor(Math.random() * 10000);
-        setTimeout(poll, initialDelay);
-
-        function showUpdateToast() {
-            if (toast && toast.parentNode) return;
-            toast = document.createElement('div');
-            toast.id = 'kb-update-toast';
-            toast.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:100001;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:10px;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;color:#222;animation:kb-preloader-in 0.3s ease;';
-            toast.innerHTML = '<span style="color:#43a047;font-weight:600">&#x2713;</span> Скрипты обновлены. <span style="color:#4a8fda;font-weight:600;text-decoration:underline;cursor:pointer">Обновить страницу</span>';
-
-            var reloadLink = toast.querySelector('span[style*="cursor:pointer"]');
-            if (reloadLink) {
-                reloadLink.onclick = function(e) {
-                    e.stopPropagation();
-                    toast.style.opacity = '0';
-                    toast.style.transform = 'translateY(8px)';
-                    toast.style.transition = 'all 0.3s ease';
-                    setTimeout(function() { toast.remove(); location.reload(); }, 300);
-                };
-            }
-
-            document.body.appendChild(toast);
-            setTimeout(function() {
-                if (toast.parentNode) {
-                    toast.style.opacity = '0';
-                    toast.style.transition = 'opacity 0.5s ease';
-                    setTimeout(function() { toast.remove(); toast = null; }, 500);
+            function done() {
+                if (--pending === 0 && polling) {
+                    var jitter = Math.floor(Math.random() * 10000) - 5000;
+                    setTimeout(pollAll, 60000 + jitter);
                 }
-            }, 30000);
+            }
         }
+
+        // Первый запрос через рандомную задержку 0-10с
+        setTimeout(pollAll, Math.floor(Math.random() * 10000));
     }
 
     // ========== ЗАПУСК ==========
