@@ -1,5 +1,5 @@
 /**
- * managersUILoader.js — Бутлоадер для Котла Лидов
+ * managersUILoader.js — Бутлоадер для ОП скриптов
  * Аналог systemImproverCRM.js, но с new Function() для передачи GM_* API.
  *
  * Запуск: Tampermonkey shell
@@ -7,7 +7,7 @@
  *
  * Отличия от systemImproverCRM:
  *   - new Function() вместо script.textContent (скрипты используют GM_* напрямую)
- *   - Список скриптов Котла
+ *   - Список скриптов ОП
  */
 
 'use strict';
@@ -19,7 +19,7 @@
 
 const BOOTLOADER_VERSION = '260529.150800';
 
-const KETTLE_BOOT = {
+const UTSP_BOOT = {
     debug: true,
 
     // Кэширование скриптов (GM_setValue)
@@ -53,7 +53,7 @@ const KETTLE_BOOT = {
     ],
 };
 
-console.log('[Котёл] Загрузчик запущен');
+console.log('[UTSP] Загрузчик запущен');
 
 
 
@@ -69,11 +69,11 @@ console.log('[Котёл] Загрузчик запущен');
 
     // Ключевые шаги — всегда, детали — только при debug
     const log = {
-        info:  (...a) => console.log('%c[Котёл]', 'color:#ff9800;font-weight:600', ...a),
-        warn:  (...a) => { if (KETTLE_BOOT.debug) console.warn('%c[Котёл]', 'color:#ff5722;font-weight:600', ...a); },
-        error: (...a) => console.error('%c[Котёл]', 'color:#dc3545;font-weight:600', ...a),
-        ok:    (...a) => console.log('%c[Котёл]', 'color:#4CAF50;font-weight:600', ...a),
-        debug: (...a) => { if (KETTLE_BOOT.debug) console.log('%c[Котёл]', 'color:#999;font-weight:400', ...a); },
+        info:  (...a) => console.log('%c[UTSP]', 'color:#ff9800;font-weight:600', ...a),
+        warn:  (...a) => { if (UTSP_BOOT.debug) console.warn('%c[UTSP]', 'color:#ff5722;font-weight:600', ...a); },
+        error: (...a) => console.error('%c[UTSP]', 'color:#dc3545;font-weight:600', ...a),
+        ok:    (...a) => console.log('%c[UTSP]', 'color:#4CAF50;font-weight:600', ...a),
+        debug: (...a) => { if (UTSP_BOOT.debug) console.log('%c[UTSP]', 'color:#999;font-weight:400', ...a); },
     };
 
     // ========== ТОКЕН ==========
@@ -85,11 +85,11 @@ console.log('[Котёл] Загрузчик запущен');
     function showTokenModal(title, descriptionHTML, placeholder, currentValue) {
         return new Promise((resolve) => {
             // Убираем предыдущий модал если есть
-            const old = document.getElementById('kettle-token-modal');
+            const old = document.getElementById('utsp-token-modal');
             if (old) old.remove();
 
             const overlay = document.createElement('div');
-            overlay.id = 'kettle-token-modal';
+            overlay.id = 'utsp-token-modal';
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;animation:kbm-fadeIn .2s ease;transition:opacity .3s ease;';
             overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
 
@@ -171,7 +171,7 @@ console.log('[Котёл] Загрузчик запущен');
                 // Тестовый запрос к GitHub API
                 GM_xmlhttpRequest({
                     method: 'GET',
-                    url: KETTLE_BOOT.repoBase + '_shared.js',
+                    url: UTSP_BOOT.repoBase + '_shared.js',
                     timeout: 10000,
                     headers: {
                         'Authorization': `Bearer ${val}`,
@@ -228,9 +228,9 @@ console.log('[Котёл] Загрузчик запущен');
             document.body.appendChild(overlay);
 
             // Стили анимации (один раз)
-            if (!document.getElementById('kettle-modal-anim')) {
+            if (!document.getElementById('utsp-modal-anim')) {
                 const s = document.createElement('style');
-                s.id = 'kettle-modal-anim';
+                s.id = 'utsp-modal-anim';
                 s.textContent = `@keyframes kbm-fadeIn{from{opacity:0}to{opacity:1}}@keyframes kbm-scaleIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}`;
                 document.head.appendChild(s);
             }
@@ -241,7 +241,7 @@ console.log('[Котёл] Загрузчик запущен');
     }
 
     async function getToken() {
-        let token = GM_getValue('kettle_github_token');
+        let token = GM_getValue('utsp_github_token');
         if (!token) {
             token = await showTokenModal(
                 'Токен',
@@ -250,14 +250,14 @@ console.log('[Котёл] Загрузчик запущен');
                 ''
             );
             if (token) {
-                GM_setValue('kettle_github_token', token);
+                GM_setValue('utsp_github_token', token);
             }
         }
         return token;
     }
 
     GM_registerMenuCommand('🔑 Изменить токен', async () => {
-        const current = GM_getValue('kettle_github_token') || '';
+        const current = GM_getValue('utsp_github_token') || '';
         const t = await showTokenModal(
             'Токен',
             'Текущий токен будет заменён на новый.',
@@ -265,24 +265,24 @@ console.log('[Котёл] Загрузчик запущен');
             current
         );
         if (t !== null) {
-            GM_setValue('kettle_github_token', t);
+            GM_setValue('utsp_github_token', t);
             location.reload();
         }
     });
 
     // ========== КЭШ ==========
 
-    // Префикс kettle_ чтобы не конфликтовать с systemImproverCRM
-    function cacheKey(name)  { return `kettle_cache_${name}`; }
-    function cacheMeta(name) { return `kettle_meta_${name}`; }
+    // Префикс utsp_ для общих ключей ОП
+    function cacheKey(name)  { return `utsp_cache_${name}`; }
+    function cacheMeta(name) { return `utsp_meta_${name}`; }
 
     function getCache(name) {
-        if (!KETTLE_BOOT.cache.enabled) return null;
+        if (!UTSP_BOOT.cache.enabled) return null;
         const meta = GM_getValue(cacheMeta(name));
         if (!meta) return null;
 
         const age = (Date.now() - meta.ts) / 1000 / 60;
-        if (age > KETTLE_BOOT.cache.ttlMinutes) return null;
+        if (age > UTSP_BOOT.cache.ttlMinutes) return null;
 
         const content = GM_getValue(cacheKey(name));
         if (!content) return null;
@@ -291,7 +291,7 @@ console.log('[Котёл] Загрузчик запущен');
     }
 
     function setCache(name, content, sha) {
-        if (!KETTLE_BOOT.cache.enabled) return;
+        if (!UTSP_BOOT.cache.enabled) return;
         GM_setValue(cacheKey(name), content);
         GM_setValue(cacheMeta(name), { ts: Date.now(), sha });
     }
@@ -304,7 +304,7 @@ console.log('[Котёл] Загрузчик запущен');
                 GM_xmlhttpRequest({
                     method: 'GET',
                     url,
-                    timeout: KETTLE_BOOT.requestTimeoutMs,
+                    timeout: UTSP_BOOT.requestTimeoutMs,
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/vnd.github.v3+json',
@@ -315,7 +315,7 @@ console.log('[Котёл] Загрузчик запущен');
                             resolve(r.responseText);
                         } else if (n > 0) {
                             log.warn(`Ретрай ${url} (${r.status})...`);
-                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                            setTimeout(() => attempt(n - 1), UTSP_BOOT.retryDelayMs);
                         } else {
                             reject(new Error(`HTTP ${r.status}: ${url}`));
                         }
@@ -323,7 +323,7 @@ console.log('[Котёл] Загрузчик запущен');
                     onerror() {
                         if (n > 0) {
                             log.warn(`Ретрай ${url} (сеть)...`);
-                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                            setTimeout(() => attempt(n - 1), UTSP_BOOT.retryDelayMs);
                         } else {
                             reject(new Error(`Network error: ${url}`));
                         }
@@ -331,7 +331,7 @@ console.log('[Котёл] Загрузчик запущен');
                     ontimeout() {
                         if (n > 0) {
                             log.warn(`Ретрай ${url} (таймаут)...`);
-                            setTimeout(() => attempt(n - 1), KETTLE_BOOT.retryDelayMs);
+                            setTimeout(() => attempt(n - 1), UTSP_BOOT.retryDelayMs);
                         } else {
                             reject(new Error(`Timeout: ${url}`));
                         }
@@ -353,12 +353,12 @@ console.log('[Котёл] Загрузчик запущен');
 
     /**
      * Выполняет скрипт через new Function() с передачей GM_* API.
-     * Скрипты Котла используют GM_* напрямую (GM_setValue, GM_addStyle и т.д.),
+     * Скрипты ОП используют GM_* напрямую (GM_setValue, GM_addStyle и т.д.),
      * поэтому передаём захваченные ссылки из _gm.
      */
     function executeScript(name, content) {
         try {
-            const gmNames = KETTLE_BOOT.gmFunctions;
+            const gmNames = UTSP_BOOT.gmFunctions;
             const gmRefs = gmNames.map(n => _gm[n] || null);
 
             const fn = new Function(...gmNames, content);
@@ -379,13 +379,13 @@ console.log('[Котёл] Загрузчик запущен');
         if (!token) { return; }
 
         var t0 = performance.now();
-        log.info('Загрузка ' + KETTLE_BOOT.scripts.length + ' скриптов...');
+        log.info('Загрузка ' + UTSP_BOOT.scripts.length + ' скриптов...');
 
         // Фаза 1: проверить кэш — если все есть, запустить мгновенно
         var allCached = true;
         var cacheHitCount = 0;
 
-        KETTLE_BOOT.scripts.forEach(function(name) {
+        UTSP_BOOT.scripts.forEach(function(name) {
             var cached = getCache(name);
             if (cached) {
                 cacheHitCount++;
@@ -396,7 +396,7 @@ console.log('[Котёл] Загрузчик запущен');
 
         if (allCached) {
             // Все в кэше — запускаем по порядку
-            KETTLE_BOOT.scripts.forEach(function(name) {
+            UTSP_BOOT.scripts.forEach(function(name) {
                 var cached = getCache(name);
                 log.debug(name + ' — из кэша (' + cached.age + ' мин)');
                 executeScript(name, cached.content);
@@ -407,15 +407,15 @@ console.log('[Котёл] Загрузчик запущен');
         }
 
         // Фаза 2: хотя бы одного нет — качаем все с GitHub (порядок важен)
-        log.info('Загрузка с GitHub: ' + KETTLE_BOOT.scripts.join(', '));
+        log.info('Загрузка с GitHub: ' + UTSP_BOOT.scripts.join(', '));
 
         // Загружаем последовательно (порядок важен — _shared.js первым)
-        for (var i = 0; i < KETTLE_BOOT.scripts.length; i++) {
-            var name = KETTLE_BOOT.scripts[i];
-            var url = KETTLE_BOOT.repoBase + name;
+        for (var i = 0; i < UTSP_BOOT.scripts.length; i++) {
+            var name = UTSP_BOOT.scripts[i];
+            var url = UTSP_BOOT.repoBase + name;
             var ts = performance.now();
             try {
-                var raw = await fetchScript(url, token, KETTLE_BOOT.retries);
+                var raw = await fetchScript(url, token, UTSP_BOOT.retries);
                 var data = JSON.parse(raw);
                 var content = decodeContent(raw);
 
@@ -442,13 +442,13 @@ console.log('[Котёл] Загрузчик запущен');
     function prefetchScripts() {
         log.info('Обновление обнаружено — prefetch скриптов в кэш...');
 
-        var names = KETTLE_BOOT.scripts;
+        var names = UTSP_BOOT.scripts;
         var pending = names.length;
         var success = 0;
-        var token = GM_getValue('kettle_github_token');
+        var token = GM_getValue('utsp_github_token');
 
         names.forEach(function(name) {
-            fetchScript(KETTLE_BOOT.repoBase + name, token, 1).then(function(raw) {
+            fetchScript(UTSP_BOOT.repoBase + name, token, 1).then(function(raw) {
                 var data = JSON.parse(raw);
                 var content = decodeContent(raw);
                 setCache(name, content, data.sha);
@@ -473,8 +473,8 @@ console.log('[Котёл] Загрузчик запущен');
      */
     function watchForUpdates(token) {
         var repos = [
-            { name: 'bootloader', url: 'https://api.github.com/repos/eliasreimer/bootloaders/commits?per_page=1', shaKey: 'kettle_bootloader_sha' },
-            { name: 'scripts',    url: 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1',      shaKey: 'kettle_repo_sha' },
+            { name: 'bootloader', url: 'https://api.github.com/repos/eliasreimer/bootloaders/commits?per_page=1', shaKey: 'utsp_bootloader_sha' },
+            { name: 'scripts',    url: 'https://api.github.com/repos/eliasreimer/managersUI/commits?per_page=1',      shaKey: 'utsp_repo_sha' },
         ];
         var etags = {};
         var polling = true;
@@ -553,7 +553,7 @@ console.log('[Котёл] Загрузчик запущен');
 
     log.info('Вызов loadAll()');
     loadAll().then(function() {
-        watchForUpdates(GM_getValue('kettle_github_token'));
+        watchForUpdates(GM_getValue('utsp_github_token'));
     }).catch(function(e) {
         log.error('Фатальная ошибка loadAll():', e);
     });
