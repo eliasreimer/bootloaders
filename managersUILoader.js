@@ -63,24 +63,35 @@ function initFooter() {
     var pfRight = document.querySelector('.pf-right');
     if (!pfRight) return;
 
-    // "v. 4.2.73" → "Версия S2 CRM: 4.2.73"
+    // "v. 4.2.73" → "Версия S2 CRM: 4.2.73" + серый цвет как у индикатора
     var versionLink = pfRight.querySelector('a.version-text');
     if (versionLink) {
         var m = versionLink.textContent.match(/v\.\s*([\d.]+)/);
         if (m) versionLink.textContent = 'Версия S2 CRM: ' + m[1];
+        versionLink.style.cssText = 'font-size:11px;color:#999;text-decoration:none;cursor:default;';
     }
 
     // Скрываем ТОЛЬКО юзер-аккаунт
     var userAccount = pfRight.querySelector('.page-footer__user-account');
     if (userAccount) userAccount.style.display = 'none';
 
+    // Измеряем min-width для стабильной ширины при смене текстов
+    var _m = document.createElement('span');
+    _m.style.cssText = 'font-size:11px;visibility:hidden;position:absolute;white-space:nowrap;pointer-events:none;';
+    _m.textContent = 'Скрипты загружены за 9999 мс.';
+    pfRight.appendChild(_m);
+    var _footerMinW = _m.offsetWidth;
+    _m.remove();
+
     // Вставляем индикатор вместо юзер-аккаунта (между двумя point-status)
     if (userAccount) {
         var span = document.createElement('span');
         span.id = 'kb-footer-indicator';
-        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap';
+        span.style.cssText = 'font-size:11px;color:#999;white-space:nowrap;display:inline-block;min-width:' + _footerMinW + 'px;opacity:0;transition:opacity .25s ease;';
         span.textContent = 'Загрузка скриптов...';
         userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
+        // Плавное появление
+        requestAnimationFrame(function() { requestAnimationFrame(function() { span.style.opacity = '1'; }); });
     }
 }
 
@@ -103,9 +114,27 @@ function hidePreloader(text, isError) {
     var el = document.getElementById('kb-footer-indicator');
     if (el) el.textContent = text || 'Готово';
 }
+
+var _footerFadeTimer = null;
+
 function updatePreloaderText(text) {
     var el = document.getElementById('kb-footer-indicator');
-    if (el) el.textContent = text;
+    if (!el) return;
+    if (el.textContent === text) return;
+    el.style.opacity = '0';
+    clearTimeout(_footerFadeTimer);
+    _footerFadeTimer = setTimeout(function() {
+        el.textContent = text;
+        el.style.opacity = '1';
+    }, 260);
+}
+
+function showLoadComplete(elapsedMs) {
+    updatePreloaderText('Скрипты загружены за ' + elapsedMs + ' мс.');
+    setTimeout(function() {
+        var ver = window.__KETTLE && window.__KETTLE.SCRIPT_VERSION;
+        if (ver) updatePreloaderText('Версия скриптов: ' + ver);
+    }, 3000);
 }
 
 
@@ -455,8 +484,7 @@ function updatePreloaderText(text) {
         if (needsFetch.length === 0) {
             var elapsed = Math.round(performance.now() - t0);
             log.ok('Все из кэше за ' + elapsed + ' мс');
-            updatePreloaderText('Скрипты загружены за ' + elapsed + ' мс.'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
-            setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
+            showLoadComplete(elapsed);
             backgroundUpdate(token);
             return;
         }
@@ -485,8 +513,7 @@ function updatePreloaderText(text) {
 
         var total = Math.round(performance.now() - t0);
         log.ok('Загрузка завершена за ' + total + ' мс');
-        updatePreloaderText('Скрипты загружены за ' + total + ' мс.'); setTimeout(function() { updatePreloaderText('Версия скриптов: ' + (window.__KETTLE && window.__KETTLE.SCRIPT_VERSION || '')); }, 3000);
-        setTimeout(function() { updateFooterIndicator('', 'version'); }, 3000);
+        showLoadComplete(total);
     }
 
     // Фоновая проверка обновлений для закэшированных скриптов
