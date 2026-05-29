@@ -379,36 +379,37 @@ console.log('[Котёл] Загрузчик запущен');
         var t0 = performance.now();
         log.info('Загрузка ' + KETTLE_BOOT.scripts.length + ' скриптов...');
 
-        // Фаза 1: мгновенный запуск из кэша
-        var needsFetch = [];
+        // Фаза 1: проверить кэш — если все есть, запустить мгновенно
+        var allCached = true;
+        var cacheHitCount = 0;
 
         KETTLE_BOOT.scripts.forEach(function(name) {
-            // Если уже есть пропуски — всё остальное тоже на загрузку (порядок важен)
-            if (needsFetch.length > 0) {
-                needsFetch.push(name);
-                return;
-            }
             var cached = getCache(name);
             if (cached) {
-                log.debug(name + ' — из кэше (' + cached.age + ' мин)');
-                executeScript(name, cached.content);
+                cacheHitCount++;
             } else {
-                needsFetch.push(name);
+                allCached = false;
             }
         });
 
-        if (needsFetch.length === 0) {
+        if (allCached) {
+            // Все в кэше — запускаем по порядку
+            KETTLE_BOOT.scripts.forEach(function(name) {
+                var cached = getCache(name);
+                log.debug(name + ' — из кэша (' + cached.age + ' мин)');
+                executeScript(name, cached.content);
+            });
             var elapsed = Math.round(performance.now() - t0);
-            log.ok('Все из кэше за ' + elapsed + ' мс');
+            log.ok('Все из кэша за ' + elapsed + ' мс');
             return;
         }
 
-        // Фаза 2: загрузка отсутствующих в кэше
-        log.info('Загрузка с GitHub: ' + needsFetch.join(', '));
+        // Фаза 2: хотя бы одного нет — качаем все с GitHub (порядок важен)
+        log.info('Загрузка с GitHub: ' + KETTLE_BOOT.scripts.join(', '));
 
         // Загружаем последовательно (порядок важен — _shared.js первым)
-        for (var i = 0; i < needsFetch.length; i++) {
-            var name = needsFetch[i];
+        for (var i = 0; i < KETTLE_BOOT.scripts.length; i++) {
+            var name = KETTLE_BOOT.scripts[i];
             var url = KETTLE_BOOT.repoBase + name;
             var ts = performance.now();
             try {
@@ -478,6 +479,12 @@ console.log('[Котёл] Загрузчик запущен');
 
         function pollAll() {
             if (!polling) return;
+            // Пропускаем полл если вкладка в фоне — экономим rate limit GitHub
+            if (document.hidden) {
+                var jitter = Math.floor(Math.random() * 6000) - 3000;
+                setTimeout(pollAll, 60000 + jitter);
+                return;
+            }
             var pending = repos.length;
 
             repos.forEach(function(repo) {

@@ -33,21 +33,21 @@
         console.log('[S2 CRM] Shell обновлён до ' + SHELL_VERSION + ' — кэш сброшен');
     }
 
-    const URL = 'https://raw.githubusercontent.com/eliasreimer/bootloaders/master/managersUILoader.js?v=' + SHELL_VERSION;
+    var BOOTLOADER_URL = 'https://raw.githubusercontent.com/eliasreimer/bootloaders/master/managersUILoader.js?v=' + SHELL_VERSION;
 
     GM_xmlhttpRequest({
         method: 'GET',
-        url: URL,
-        onload(r) {
+        url: BOOTLOADER_URL,
+        onload: function(r) {
             if (r.status !== 200) return console.error('[S2 CRM] Ошибка загрузчика:', r.status);
             try {
-                const fn = new Function(
+                var fn = new Function(
                     'GM_xmlhttpRequest','GM_notification','GM_getValue','GM_setValue','GM_deleteValue','GM_addStyle','GM_registerMenuCommand',
                     r.responseText
                 );
                 fn(GM_xmlhttpRequest, GM_notification, GM_getValue, GM_setValue, GM_deleteValue, GM_addStyle, GM_registerMenuCommand);
             } catch(e) { console.error('[S2 CRM]', e); }
         },
-        onerror(e) { console.error('[S2 CRM] Ошибка сети:', e); },
+        onerror: function(e) { console.error('[S2 CRM] Ошибка сети:', e); },
     });
 })();
