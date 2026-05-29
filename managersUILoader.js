@@ -53,86 +53,6 @@ const KETTLE_BOOT = {
 
 console.log('[Котёл] Загрузчик запущен');
 
-// ========== ФУТЕРНЫЙ ИНДИКАТОР ==========
-
-function initFooter() {
-    if (document.getElementById('kb-footer-indicator')) return;
-    var pfRight = document.querySelector('.pf-right');
-    if (!pfRight) return;
-
-    // "v. 4.2.73" → "Версия S2 CRM: 4.2.73" + серый цвет как у индикатора
-    var versionLink = pfRight.querySelector('a.version-text');
-    if (versionLink) {
-        var m = versionLink.textContent.match(/v\.\s*([\d.]+)/);
-        if (m) versionLink.textContent = 'Версия S2 CRM: ' + m[1];
-        versionLink.style.cssText = 'font-size:11px;color:#999;text-decoration:none;cursor:default;';
-    }
-
-    // Скрываем ТОЛЬКО юзер-аккаунт
-    var userAccount = pfRight.querySelector('.page-footer__user-account');
-    if (userAccount) userAccount.style.display = 'none';
-
-    // Измеряем min-width для стабильной ширины при смене текстов
-    var _m = document.createElement('span');
-    _m.style.cssText = 'font-size:11px;visibility:hidden;position:absolute;white-space:nowrap;pointer-events:none;';
-    _m.textContent = 'Скрипты загружены за 9999 мс.';
-    pfRight.appendChild(_m);
-    var _footerMinW = _m.offsetWidth;
-    _m.remove();
-
-    // Вставляем индикатор вместо юзер-аккаунта (между двумя point-status)
-    if (userAccount) {
-        var span = document.createElement('span');
-        span.id = 'kb-footer-indicator';
-        span.style.cssText = 'font-size:11px;color:#d5d5d5;white-space:nowrap;display:inline-block;min-width:' + _footerMinW + 'px;text-align:center;opacity:0;transition:opacity .25s ease;';
-        span.textContent = 'Загрузка скриптов...';
-        userAccount.parentNode.insertBefore(span, userAccount.nextSibling);
-        // Плавное появление
-        requestAnimationFrame(function() { requestAnimationFrame(function() { span.style.opacity = '1'; }); });
-    }
-}
-
-// Пробуем сразу
-initFooter();
-
-// Если футер ещё не в DOM — ждём
-if (!document.getElementById('kb-footer-indicator')) {
-    var _ftObs = new MutationObserver(function() {
-        if (document.querySelector('.pf-right')) {
-            _ftObs.disconnect();
-            initFooter();
-        }
-    });
-    _ftObs.observe(document.body, { childList: true, subtree: true });
-    setTimeout(function() { _ftObs.disconnect(); }, 10000);
-}
-
-function hidePreloader(text, isError) {
-    var el = document.getElementById('kb-footer-indicator');
-    if (el) el.textContent = text || 'Готово';
-}
-
-var _footerFadeTimer = null;
-
-function updatePreloaderText(text) {
-    var el = document.getElementById('kb-footer-indicator');
-    if (!el) return;
-    if (el.textContent === text) return;
-    el.style.opacity = '0';
-    clearTimeout(_footerFadeTimer);
-    _footerFadeTimer = setTimeout(function() {
-        el.textContent = text;
-        el.style.opacity = '1';
-    }, 260);
-}
-
-function showLoadComplete(elapsedMs) {
-    updatePreloaderText('Скрипты загружены за ' + elapsedMs + ' мс.');
-    setTimeout(function() {
-        var ver = window.__KETTLE && window.__KETTLE.SCRIPT_VERSION;
-        if (ver) updatePreloaderText('Версия скриптов: ' + ver);
-    }, 3000);
-}
 
 
 // ========== Захват GM_* API ==========
@@ -454,11 +374,10 @@ function showLoadComplete(elapsedMs) {
         log.info('loadAll() вызван');
         var token = await getToken();
         log.info('токен:', token ? 'получен' : 'отсутствует');
-        if (!token) { updatePreloaderText('Ошибка: нет токена'); return; }
+        if (!token) { return; }
 
         var t0 = performance.now();
         log.info('Загрузка ' + KETTLE_BOOT.scripts.length + ' скриптов...');
-        updatePreloaderText('Загрузка скриптов...');
 
         // Фаза 1: мгновенный запуск из кэша
         var needsFetch = [];
@@ -481,7 +400,6 @@ function showLoadComplete(elapsedMs) {
         if (needsFetch.length === 0) {
             var elapsed = Math.round(performance.now() - t0);
             log.ok('Все из кэше за ' + elapsed + ' мс');
-            showLoadComplete(elapsed);
             return;
         }
 
@@ -509,7 +427,6 @@ function showLoadComplete(elapsedMs) {
 
         var total = Math.round(performance.now() - t0);
         log.ok('Загрузка завершена за ' + total + ' мс');
-        showLoadComplete(total);
     }
 
     // ========== АВТООБНОВЛЕНИЕ ==========
@@ -520,7 +437,6 @@ function showLoadComplete(elapsedMs) {
      */
     function silentReload() {
         log.info('Тихое обновление: prefetch скриптов...');
-        updatePreloaderText('Обновление скриптов...');
 
         var names = KETTLE_BOOT.scripts;
         var pending = names.length;
@@ -634,5 +550,4 @@ function showLoadComplete(elapsedMs) {
         watchForUpdates(GM_getValue('kettle_github_token'));
     }).catch(function(e) {
         log.error('Фатальная ошибка loadAll():', e);
-        hidePreloader('Ошибка загрузки', true);
     });
