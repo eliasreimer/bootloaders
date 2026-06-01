@@ -84,6 +84,15 @@ console.log('[UTSP] Загрузчик запущен');
      */
     function showTokenModal(title, descriptionHTML, placeholder, currentValue) {
         return new Promise((resolve) => {
+            var resolved = false;
+            var tokenPoll = null;
+            function done(val) {
+                if (resolved) return;
+                resolved = true;
+                if (tokenPoll) clearInterval(tokenPoll);
+                resolve(val);
+            }
+
             // Убираем предыдущий модал если есть
             const old = document.getElementById('utsp-token-modal');
             if (old) old.remove();
@@ -91,7 +100,7 @@ console.log('[UTSP] Загрузчик запущен');
             const overlay = document.createElement('div');
             overlay.id = 'utsp-token-modal';
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;animation:kbm-fadeIn .2s ease;transition:opacity .3s ease;';
-            overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
+            overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); done(null); } };
 
             const box = document.createElement('div');
             box.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.35);width:440px;overflow:hidden;animation:kbm-scaleIn .25s ease;transition:opacity .3s ease,transform .3s ease;';
@@ -135,7 +144,7 @@ console.log('[UTSP] Загрузчик запущен');
             cancelBtn.style.cssText = 'padding:8px 18px;border:1px solid #dee2e6;border-radius:8px;background:#fff;color:#555;font-size:13px;cursor:pointer;transition:background .15s;';
             cancelBtn.addEventListener('mouseenter', () => { cancelBtn.style.background = '#f0f0f0'; });
             cancelBtn.addEventListener('mouseleave', () => { cancelBtn.style.background = '#fff'; });
-            cancelBtn.onclick = () => { overlay.remove(); resolve(null); };
+            cancelBtn.onclick = () => { overlay.remove(); done(null); };
 
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Сохранить';
@@ -201,7 +210,7 @@ console.log('[UTSP] Загрузчик запущен');
                                 box.style.transform = 'scale(0.95)';
                                 setTimeout(() => {
                                     overlay.remove();
-                                    resolve(val);
+                                    done(val);
                                 }, 300);
                             }, 1400);
                         } else {
@@ -227,6 +236,23 @@ console.log('[UTSP] Загрузчик запущен');
             overlay.appendChild(box);
             document.body.appendChild(overlay);
 
+            // Polling: если другая вкладка сохранила токен — автоматически закрываем модал
+            tokenPoll = setInterval(function() {
+                try {
+                    var t = GM_getValue('utsp_github_token');
+                    if (t) {
+                        elementsToHide.forEach(function(el) { el.style.opacity = '0'; el.style.display = 'none'; });
+                        resultEl.innerHTML = '<span style="font-size:24px">✅</span><div style="margin-top:8px;font-size:15px;font-weight:600;color:#222;">Токен загружен</div>';
+                        resultEl.style.display = 'block';
+                        setTimeout(function() {
+                            overlay.style.opacity = '0';
+                            box.style.opacity = '0';
+                            setTimeout(function() { overlay.remove(); done(t); }, 300);
+                        }, 1200);
+                    }
+                } catch (_) {}
+            }, 500);
+
             // Стили анимации (один раз)
             if (!document.getElementById('utsp-modal-anim')) {
                 const s = document.createElement('style');
@@ -249,6 +275,11 @@ console.log('[UTSP] Загрузчик запущен');
                 'github_pat_...',
                 ''
             );
+            if (token) {
+                GM_setValue('utsp_github_token', token);
+            }
+            // Фоллбэк: отменили, но другая вкладка уже сохранила токен
+            if (!token) token = GM_getValue('utsp_github_token');
             if (token) {
                 GM_setValue('utsp_github_token', token);
             }
