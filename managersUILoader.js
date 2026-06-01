@@ -25,7 +25,7 @@ const UTSP_BOOT = {
     // Кэширование скриптов (GM_setValue)
     cache: {
         enabled: true,
-        ttlMinutes: 30,
+        ttlMinutes: 5,
     },
 
     // Ретраи при ошибках сети
